@@ -10,7 +10,7 @@ import { appendMediaToMessage } from '../../../../script.js';
 import { regexFromString } from '../../../utils.js';
 import { SlashCommandParser } from '../../../slash-commands/SlashCommandParser.js';
 
-const extensionName = 'st-image-auto-generation';
+const extensionName = 'IAGF';
 const extensionFolderPath = `/scripts/extensions/third-party/${extensionName}`;
 
 let TagMatcher = null;
