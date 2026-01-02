@@ -1,0 +1,796 @@
+<div class="inline-drawer">
+    <div class="inline-drawer-toggle inline-drawer-header">
+        <b data-i18n="Image Auto Generation">IAGF</b>
+        <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
+    </div>
+    <div class="inline-drawer-content">
+        <div id="nai_status_panel" class="nai_status_panel">
+            <div class="nai_status_header">
+                <svg class="status_header_icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="3" width="18" height="18" rx="2"/>
+                    <path d="M9 9h6v6H9z"/>
+                </svg>
+                <span class="nai_status_title" data-i18n="Current NAI Status">NAI Status</span>
+                <span id="nai_status_indicator" class="nai_status_indicator inactive">●</span>
+            </div>
+            <div id="nai_status_content" class="nai_status_content">
+                <div class="nai_status_item" id="status_preset">
+                    <svg class="status_icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="3"/>
+                        <path d="M12 1v4m0 14v4m11-11h-4M5 12H1m16.95-6.95l-2.83 2.83M9.88 14.12l-2.83 2.83m0-9.9l2.83 2.83m4.24 4.24l2.83 2.83"/>
+                    </svg>
+                    <span class="status_label">Preset:</span>
+                    <span class="status_value" id="status_preset_value">Default</span>
+                </div>
+                <div class="nai_status_item" id="status_vibe">
+                    <svg class="status_icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/>
+                        <path d="M8 14s1.5 2 4 2 4-2 4-2"/>
+                        <circle cx="9" cy="10" r="1" fill="currentColor"/>
+                        <circle cx="15" cy="10" r="1" fill="currentColor"/>
+                    </svg>
+                    <span class="status_label">Vibe:</span>
+                    <span class="status_value" id="status_vibe_value">Not set</span>
+                </div>
+                <div class="nai_status_item" id="status_charref">
+                    <svg class="status_icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="7" r="4"/>
+                        <path d="M5.5 21a6.5 6.5 0 0 1 13 0"/>
+                    </svg>
+                    <span class="status_label">Character:</span>
+                    <span class="status_value" id="status_charref_value">Not set</span>
+                </div>
+                <div class="nai_status_item" id="status_negative">
+                    <svg class="status_icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <path d="M4.93 4.93l14.14 14.14"/>
+                    </svg>
+                    <span class="status_label">Negative:</span>
+                    <span class="status_value" id="status_negative_value">Not set</span>
+                </div>
+                <div class="nai_status_item" id="status_charprompt">
+                    <svg class="status_icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="9" cy="7" r="3"/>
+                        <path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/>
+                        <circle cx="17" cy="10" r="2.5"/>
+                        <path d="M14 21v-1.5a3 3 0 0 1 3-3h2"/>
+                    </svg>
+                    <span class="status_label">CharPrompt:</span>
+                    <span class="status_value" id="status_charprompt_value">Not set</span>
+                </div>
+            </div>
+        </div>
+
+        <hr class="sysHR">
+
+        <div class="flex-container flexnowrap">
+            <label for="image_generation_insert_type" class="flex1" data-i18n="Image Insert Type">Image Insert Type</label>
+            <select id="image_generation_insert_type" class="text_pole widthNatural margin0">
+                <option data-i18n="Insert In Current Message" value="inline">Insert In Current Message</option>
+                <option data-i18n="Inline Replace Mode" value="replace">Inline Replace Mode</option>
+                <option data-i18n="Create New Message" value="new">Create New Message</option>
+                <option data-i18n="Disable" value="disabled">Disable</option>
+            </select>
+        </div>
+        <div class="flex-container flexnowrap">
+            <label class="checkbox_label" for="prompt_injection_enabled">
+                <span data-i18n="Enable Prompt Injection">Enable Prompt Injection</span>
+                <input type="checkbox" id="prompt_injection_enabled" class="checkbox">
+            </label>
+        </div>
+        <div class="">
+            <div><label for="prompt_injection_text" class="flex1" data-i18n="Prompt Template">Prompt Template</label></div>
+            <textarea id="prompt_injection_text" class="text_pole textarea_compact" rows="3" placeholder="Prompt that instruct AI to generate image tag"></textarea>
+        </div>
+        <div class="">
+            <div><label for="prompt_injection_regex" class="flex1" data-i18n="Regex">Regex</label></div>
+            <textarea id="prompt_injection_regex" class="text_pole textarea_compact" rows="2" placeholder="Your regex here"></textarea>
+        </div>
+        <div class="flex-container flexnowrap">
+            <label for="prompt_injection_position" class="flex1" data-i18n="Position">Position</label>
+            <select id="prompt_injection_position" class="text_pole widthNatural margin0">
+                <option value="deep_system" data-i18n="at Depth System">@D ⚙️</option>
+                <option value="deep_user" data-i18n="at Depth User">@D 👤</option>
+                <option value="deep_assistant" data-i18n="at Depth AI">@D 🤖</option>
+            </select>
+        </div>
+        <div class="flex-container flexnowrap">
+            <label for="prompt_injection_depth" class="flex1" data-i18n="Depth">Depth</label>
+            <input id="prompt_injection_depth" class="text_pole widthUnset" type="number" min="0" max="100">
+        </div>
+
+        <hr class="sysHR">
+
+        <div class="inline-drawer">
+            <div class="inline-drawer-toggle inline-drawer-header">
+                <svg class="section_icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="3"/>
+                    <path d="M12 1v4m0 14v4m11-11h-4M5 12H1m16.95-6.95l-2.83 2.83M9.88 14.12l-2.83 2.83m0-9.9l2.83 2.83m4.24 4.24l2.83 2.83"/>
+                </svg>
+                <b data-i18n="Image Presets">Image Presets</b>
+                <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
+            </div>
+            <div class="inline-drawer-content">
+                <div class="flex-container flexnowrap marginBot5">
+                    <label for="image_preset_select" class="flex1" data-i18n="Current Preset">Current Preset</label>
+                    <select id="image_preset_select" class="text_pole widthNatural margin0">
+                        <option value="default">Default</option>
+                    </select>
+                    <div id="image_preset_add" class="menu_button menu_button_icon" title="Add new preset">
+                        <i class="fa-solid fa-plus"></i>
+                    </div>
+                    <div id="image_preset_delete" class="menu_button menu_button_icon" title="Delete preset">
+                        <i class="fa-solid fa-trash"></i>
+                    </div>
+                </div>
+                <div class="">
+                    <div><label for="preset_name_input" class="flex1" data-i18n="Preset Name">Preset Name</label></div>
+                    <input id="preset_name_input" class="text_pole" type="text" placeholder="Enter preset name">
+                </div>
+                <div class="">
+                    <div><label for="preset_prefix_prompt" class="flex1" data-i18n="Prefix Prompt">Prefix Prompt (added before)</label></div>
+                    <textarea id="preset_prefix_prompt" class="text_pole textarea_compact" rows="2" placeholder="e.g., masterpiece, best quality, ..."></textarea>
+                </div>
+                <div class="">
+                    <div><label for="preset_suffix_prompt" class="flex1" data-i18n="Suffix Prompt">Suffix Prompt (added after)</label></div>
+                    <textarea id="preset_suffix_prompt" class="text_pole textarea_compact" rows="2" placeholder="e.g., detailed background, ..."></textarea>
+                </div>
+                <div class="">
+                    <div><label for="preset_negative_prompt" class="flex1" data-i18n="Negative Prompt">Negative Prompt</label></div>
+                    <textarea id="preset_negative_prompt" class="text_pole textarea_compact" rows="2" placeholder="e.g., lowres, bad anatomy, ..."></textarea>
+                </div>
+                <div class="flex-container flexnowrap">
+                    <div id="preset_save" class="menu_button menu_button_icon" title="Save preset">
+                        <i class="fa-solid fa-save"></i>
+                        <span data-i18n="Save Preset">Save Preset</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <hr class="sysHR">
+
+        <div class="inline-drawer">
+            <div class="inline-drawer-toggle inline-drawer-header">
+                <svg class="section_icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/>
+                    <path d="M8 14s1.5 2 4 2 4-2 4-2"/>
+                    <circle cx="9" cy="10" r="1" fill="currentColor"/>
+                    <circle cx="15" cy="10" r="1" fill="currentColor"/>
+                </svg>
+                <b data-i18n="Vibe Transfer">Vibe Transfer</b>
+                <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
+            </div>
+            <div class="inline-drawer-content">
+                <div class="flex-container flexnowrap">
+                    <label class="checkbox_label" for="vibe_transfer_enabled">
+                        <span data-i18n="Enable Vibe Transfer">Enable Vibe Transfer</span>
+                        <input type="checkbox" id="vibe_transfer_enabled" class="checkbox">
+                    </label>
+                </div>
+                <div class="flex-container flexnowrap marginBot5">
+                    <label for="vibe_image_select" class="flex1" data-i18n="Vibe Image">Vibe Image</label>
+                    <select id="vibe_image_select" class="text_pole widthNatural margin0">
+                        <option value="">-- Select Vibe --</option>
+                    </select>
+                </div>
+                <div class="flex-container flexnowrap marginBot5">
+                    <label for="vibe_strength" class="flex1" data-i18n="Vibe Strength">Vibe Strength</label>
+                    <input id="vibe_strength" class="text_pole widthUnset" type="number" min="0" max="1" step="0.1" value="0.6">
+                </div>
+                <div class="flex-container flexnowrap marginBot5">
+                    <label for="vibe_info_extracted" class="flex1" data-i18n="Info Extracted">Info Extracted</label>
+                    <input id="vibe_info_extracted" class="text_pole widthUnset" type="number" min="0" max="1" step="0.1" value="1.0">
+                </div>
+                <div id="vibe_images_container" class="image_grid_container">
+                </div>
+                <div class="flex-container flexnowrap marginTop5">
+                    <input type="file" id="vibe_image_upload" accept="image/*" style="display: none;">
+                    <div id="vibe_image_add_btn" class="menu_button menu_button_icon">
+                        <i class="fa-solid fa-plus"></i>
+                        <span data-i18n="Add Vibe Image">Add Vibe Image</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <hr class="sysHR">
+
+        <div class="inline-drawer">
+            <div class="inline-drawer-toggle inline-drawer-header">
+                <svg class="section_icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="7" r="4"/>
+                    <path d="M5.5 21a6.5 6.5 0 0 1 13 0"/>
+                </svg>
+                <b data-i18n="Character Reference">Character Reference</b>
+                <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
+            </div>
+            <div class="inline-drawer-content">
+                <div class="flex-container flexnowrap">
+                    <label class="checkbox_label" for="char_reference_enabled">
+                        <span data-i18n="Enable Character Reference">Enable Character Reference</span>
+                        <input type="checkbox" id="char_reference_enabled" class="checkbox">
+                    </label>
+                </div>
+                <div class="flex-container flexnowrap marginBot5">
+                    <label for="char_reference_select" class="flex1" data-i18n="Character">Character</label>
+                    <select id="char_reference_select" class="text_pole widthNatural margin0">
+                        <option value="">-- Select Character --</option>
+                    </select>
+                    <div id="char_reference_add" class="menu_button menu_button_icon" title="Add character">
+                        <i class="fa-solid fa-plus"></i>
+                    </div>
+                    <div id="char_reference_delete" class="menu_button menu_button_icon" title="Delete character">
+                        <i class="fa-solid fa-trash"></i>
+                    </div>
+                </div>
+                <div class="flex-container flexnowrap marginBot5">
+                    <label for="char_ref_fidelity" class="flex1" data-i18n="Fidelity">Fidelity (캐릭터 충실도)</label>
+                    <input id="char_ref_fidelity" class="text_pole widthUnset" type="number" min="0" max="1" step="0.1" value="0.6">
+                </div>
+                <div class="flex-container flexnowrap marginBot5">
+                    <label class="checkbox_label" for="char_ref_style_aware">
+                        <span data-i18n="Style Aware">Style Aware (스타일도 참조)</span>
+                        <input type="checkbox" id="char_ref_style_aware" class="checkbox">
+                    </label>
+                </div>
+                <div id="char_reference_images_container" class="image_grid_container">
+                </div>
+                <div class="flex-container flexnowrap marginTop5">
+                    <input type="file" id="char_reference_image_upload" accept="image/*" style="display: none;">
+                    <div id="char_reference_image_add_btn" class="menu_button menu_button_icon">
+                        <i class="fa-solid fa-plus"></i>
+                        <span data-i18n="Add Reference Image">Add Reference Image</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <hr class="sysHR">
+
+        <div class="inline-drawer">
+            <div class="inline-drawer-toggle inline-drawer-header">
+                <svg class="section_icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>
+                    <line x1="7" y1="7" x2="7.01" y2="7"/>
+                </svg>
+                <b data-i18n="Tag Matching">Tag Matching (Danbooru)</b>
+                <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
+            </div>
+            <div class="inline-drawer-content">
+                <div class="flex-container flexnowrap">
+                    <label class="checkbox_label" for="tag_matching_enabled">
+                        <span data-i18n="Enable Tag Matching">Enable Tag Matching</span>
+                        <input type="checkbox" id="tag_matching_enabled" class="checkbox">
+                    </label>
+                </div>
+                <div class="flex-container flexnowrap">
+                    <label class="checkbox_label" for="tag_matching_fuzzy_best">
+                        <span data-i18n="Use Best Fuzzy Match">Use Best Fuzzy Match</span>
+                        <input type="checkbox" id="tag_matching_fuzzy_best" class="checkbox" checked>
+                    </label>
+                </div>
+                <div class="flex-container flexnowrap">
+                    <label class="checkbox_label" for="tag_matching_keep_unmatched">
+                        <span data-i18n="Keep Unmatched Tags">Keep Unmatched Tags</span>
+                        <input type="checkbox" id="tag_matching_keep_unmatched" class="checkbox" checked>
+                    </label>
+                </div>
+                <div class="flex-container flexnowrap">
+                    <label class="checkbox_label" for="tag_matching_show_stats">
+                        <span data-i18n="Show Matching Stats">Show Stats in Console</span>
+                        <input type="checkbox" id="tag_matching_show_stats" class="checkbox" checked>
+                    </label>
+                </div>
+                <p class="hint" data-i18n="Tag Matching Hint">Converts AI-generated tags to actual Danbooru tags for better image generation results. Uses fuzzy matching and synonym expansion.</p>
+                <div id="tag_matching_status" class="tag_matching_status">
+                    <span class="status_label">Status:</span>
+                    <span id="tag_matching_status_value" class="status_value">Not loaded</span>
+                </div>
+            </div>
+        </div>
+
+        <hr class="sysHR">
+
+        <div class="inline-drawer">
+            <div class="inline-drawer-toggle inline-drawer-header">
+                <svg class="section_icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="7" r="4"/>
+                    <path d="M5.5 21a6.5 6.5 0 0 1 13 0"/>
+                    <circle cx="18" cy="10" r="3"/>
+                    <path d="M16 17a4 4 0 0 1 8 0"/>
+                </svg>
+                <b data-i18n="Character Prompts">Character Prompts (v4)</b>
+                <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
+            </div>
+            <div class="inline-drawer-content">
+                <div class="flex-container flexnowrap">
+                    <label class="checkbox_label" for="char_prompts_enabled">
+                        <span data-i18n="Enable Character Prompts">Enable Character Prompts</span>
+                        <input type="checkbox" id="char_prompts_enabled" class="checkbox">
+                    </label>
+                </div>
+                <div class="flex-container flexnowrap">
+                    <label class="checkbox_label" for="char_prompts_position_enabled">
+                        <span data-i18n="Enable Position">Enable Position (use_coords)</span>
+                        <input type="checkbox" id="char_prompts_position_enabled" class="checkbox">
+                    </label>
+                </div>
+                <div class="char_prompts_bot_info">
+                    <span class="status_label">Current Bot:</span>
+                    <span id="current_bot_name" class="status_value">No bot selected</span>
+                </div>
+                <p class="hint" data-i18n="Character Prompts Hint">Define character-specific prompts for NAI v4 models. Each bot has its own character prompt settings. Multiple characters can be positioned in the image.</p>
+                <div id="char_prompts_list" class="char_prompts_container">
+                </div>
+                <div class="flex-container flexnowrap marginTop5">
+                    <div id="char_prompts_add" class="menu_button menu_button_icon">
+                        <i class="fa-solid fa-plus"></i>
+                        <span data-i18n="Add Character">Add Character</span>
+                    </div>
+                    <div id="char_prompts_clear" class="menu_button menu_button_icon">
+                        <i class="fa-solid fa-trash"></i>
+                        <span data-i18n="Clear All">Clear All</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.image_grid_container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 10px;
+    background: var(--SmartThemeBlurTintColor);
+    border-radius: 6px;
+    min-height: 60px;
+    margin-top: 5px;
+    border: 1px solid var(--SmartThemeBorderColor);
+}
+
+.image_grid_item {
+    position: relative;
+    width: 72px;
+    height: 72px;
+    border-radius: 6px;
+    overflow: hidden;
+    border: 1px solid var(--SmartThemeBorderColor);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    opacity: 0.85;
+}
+
+.image_grid_item:hover {
+    opacity: 1;
+    border-color: var(--SmartThemeBodyColor);
+}
+
+.image_grid_item img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    filter: grayscale(20%);
+    transition: filter 0.2s ease;
+}
+
+.image_grid_item:hover img {
+    filter: grayscale(0%);
+}
+
+.image_grid_item.selected {
+    border-color: var(--SmartThemeBodyColor);
+    opacity: 1;
+}
+
+.image_grid_item.selected img {
+    filter: grayscale(0%);
+}
+
+.image_grid_item .delete_btn {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    background: rgba(0, 0, 0, 0.6);
+    color: var(--SmartThemeBodyColor);
+    border: none;
+    border-radius: 50%;
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    transition: background 0.2s ease;
+}
+
+.image_grid_item .delete_btn:hover {
+    background: rgba(0, 0, 0, 0.8);
+}
+
+.image_grid_item:hover .delete_btn {
+    display: flex;
+}
+
+.image_grid_item .toggle_btn {
+    position: absolute;
+    bottom: 4px;
+    left: 4px;
+    background: rgba(0, 0, 0, 0.6);
+    color: var(--SmartThemeBodyColor);
+    border: none;
+    border-radius: 50%;
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 9px;
+    transition: all 0.2s ease;
+    opacity: 0.7;
+}
+
+.image_grid_item .toggle_btn:hover {
+    background: rgba(0, 0, 0, 0.8);
+    opacity: 1;
+}
+
+.image_grid_item .toggle_btn.active {
+    background: rgba(60, 120, 60, 0.8);
+    color: #90EE90;
+}
+
+.image_grid_item .toggle_btn:not(.active) {
+    background: rgba(120, 60, 60, 0.8);
+    color: #FFB6C1;
+}
+
+.image_grid_item.disabled {
+    opacity: 0.4;
+}
+
+.image_grid_item.disabled img {
+    filter: grayscale(80%);
+}
+
+.image_grid_item .selected_badge {
+    position: absolute;
+    bottom: 4px;
+    right: 4px;
+    background: rgba(60, 120, 180, 0.9);
+    color: white;
+    font-size: 7px;
+    font-weight: bold;
+    padding: 2px 4px;
+    border-radius: 3px;
+    letter-spacing: 0.5px;
+}
+
+.marginBot5 {
+    margin-bottom: 5px;
+}
+
+.marginTop5 {
+    margin-top: 5px;
+}
+
+.hint {
+    font-size: 0.8em;
+    color: var(--SmartThemeQuoteColor);
+    margin-top: 8px;
+    opacity: 0.7;
+}
+
+.sysHR {
+    margin: 12px 0;
+    border: none;
+    border-top: 1px solid var(--SmartThemeBorderColor);
+    opacity: 0.5;
+}
+
+.section_icon {
+    margin-right: 6px;
+    opacity: 0.8;
+    flex-shrink: 0;
+}
+
+.status_header_icon {
+    margin-right: 6px;
+    opacity: 0.7;
+}
+
+.nai_status_panel {
+    background: var(--SmartThemeBlurTintColor);
+    border-radius: 6px;
+    padding: 12px;
+    margin-bottom: 12px;
+    border: 1px solid var(--SmartThemeBorderColor);
+}
+
+.nai_status_header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--SmartThemeBorderColor);
+    opacity: 0.9;
+}
+
+.nai_status_title {
+    font-weight: 600;
+    font-size: 0.9em;
+    flex: 1;
+    letter-spacing: 0.02em;
+}
+
+.nai_status_indicator {
+    font-size: 10px;
+    transition: all 0.3s ease;
+}
+
+.nai_status_indicator.inactive {
+    color: var(--SmartThemeBorderColor);
+}
+
+.nai_status_indicator.active {
+    color: var(--SmartThemeBodyColor);
+    animation: pulse 2s infinite;
+}
+
+.nai_status_indicator.generating {
+    color: var(--SmartThemeQuoteColor);
+    animation: pulse 0.6s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+}
+
+.nai_status_content {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+}
+
+.nai_status_item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 8px;
+    border-radius: 4px;
+    background: rgba(0, 0, 0, 0.15);
+    font-size: 0.8em;
+    transition: all 0.2s ease;
+}
+
+.nai_status_item.active {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid var(--SmartThemeBorderColor);
+}
+
+.nai_status_item.inactive {
+    opacity: 0.5;
+}
+
+.nai_status_item.paused {
+    background: rgba(255, 200, 100, 0.1);
+    border: 1px dashed var(--SmartThemeBorderColor);
+    opacity: 0.7;
+}
+
+.nai_status_item .status_icon {
+    flex-shrink: 0;
+    opacity: 0.7;
+}
+
+.status_label {
+    font-weight: 500;
+    opacity: 0.7;
+    font-size: 0.9em;
+}
+
+.status_value {
+    flex: 1;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    white-space: nowrap;
+    text-align: right;
+    font-size: 0.9em;
+}
+
+.status_value.not-set {
+    opacity: 0.4;
+}
+
+.inline-drawer-header {
+    display: flex;
+    align-items: center;
+}
+
+.inline-drawer-header b {
+    flex: 1;
+}
+
+.tag_matching_status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    margin-top: 8px;
+    border-radius: 4px;
+    background: rgba(0, 0, 0, 0.15);
+    font-size: 0.85em;
+}
+
+.tag_matching_status .status_label {
+    font-weight: 500;
+    opacity: 0.7;
+}
+
+.tag_matching_status .status_value {
+    flex: 1;
+    text-align: right;
+}
+
+.tag_matching_status .status_value.ready {
+    color: #90EE90;
+}
+
+.tag_matching_status .status_value.loading {
+    color: #FFD700;
+}
+
+.tag_matching_status .status_value.error {
+    color: #FF6B6B;
+}
+
+.char_prompts_bot_info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    margin: 8px 0;
+    border-radius: 4px;
+    background: rgba(0, 0, 0, 0.15);
+    font-size: 0.85em;
+}
+
+.char_prompts_container {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-height: 400px;
+    overflow-y: auto;
+    padding: 5px 0;
+}
+
+.char_prompt_item {
+    border: 1px solid var(--SmartThemeBorderColor);
+    border-radius: 8px;
+    overflow: visible;
+    transition: opacity 0.2s ease;
+    margin-bottom: 5px;
+}
+
+.char_prompt_item.disabled {
+    opacity: 0.5;
+}
+
+.char_prompt_header {
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px;
+    padding: 8px 10px;
+    background: var(--SmartThemeBlurTintColor);
+    border-bottom: 1px solid var(--SmartThemeBorderColor);
+    flex-wrap: nowrap;
+    min-height: 44px;
+}
+
+.char_prompt_badge {
+    width: 24px;
+    height: 24px;
+    min-width: 24px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: bold;
+    color: white;
+    flex-shrink: 0;
+}
+
+.char_prompt_name {
+    flex: 1;
+    padding: 4px 8px !important;
+    font-size: 0.9em !important;
+    height: auto !important;
+    min-width: 100px;
+    max-width: none !important;
+}
+
+.char_prompt_toggle,
+.char_prompt_delete {
+    width: 28px;
+    height: 28px;
+    min-width: 28px;
+    padding: 0;
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.char_prompt_toggle.active {
+    color: #90EE90;
+}
+
+.char_prompt_toggle:not(.active) {
+    color: var(--SmartThemeQuoteColor);
+}
+
+.char_prompt_delete:hover {
+    color: #FF6B6B;
+}
+
+.char_prompt_body {
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.char_prompt_field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.char_prompt_field label {
+    font-size: 0.8em;
+    opacity: 0.7;
+}
+
+.char_prompt_field label.negative_label {
+    color: #FF6B6B;
+}
+
+.char_prompt_text,
+.char_prompt_negative {
+    min-height: 60px;
+    resize: vertical;
+    font-size: 0.9em !important;
+}
+
+.char_prompt_position {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 8px;
+    background: rgba(0, 0, 0, 0.1);
+    border-radius: 4px;
+}
+
+.char_prompt_position label {
+    font-size: 0.8em;
+    opacity: 0.7;
+}
+
+.position_controls {
+    display: flex;
+    gap: 10px;
+}
+
+.position_controls input[type="range"] {
+    flex: 1;
+}
+</style>
