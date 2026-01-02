@@ -10,7 +10,7 @@ import { appendMediaToMessage } from '../../../../script.js';
 import { regexFromString } from '../../../utils.js';
 import { SlashCommandParser } from '../../../slash-commands/SlashCommandParser.js';
 
-const extensionName = 'IAGF';
+const extensionName = 'I-AGF';
 const extensionFolderPath = `/scripts/extensions/third-party/${extensionName}`;
 
 let TagMatcher = null;
@@ -2464,3 +2464,4 @@ window.imageAutoGeneration = {
     getNAIExtraParams,
     detectCharacterFromPrompt,
 };
+
