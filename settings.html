@@ -104,6 +104,32 @@
         <div class="inline-drawer">
             <div class="inline-drawer-toggle inline-drawer-header">
                 <svg class="section_icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="3" width="18" height="14" rx="2"/>
+                    <path d="M3 9h18"/>
+                    <circle cx="9" cy="13" r="2"/>
+                    <path d="M15 11l3 4"/>
+                </svg>
+                <b data-i18n="Message Action Prompt">Message Action Prompt</b>
+                <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
+            </div>
+            <div class="inline-drawer-content">
+                <p class="hint" data-i18n="Message Action Prompt Hint">메시지 액션 버튼으로 이미지 생성 시 AI에게 보내는 프롬프트입니다. {{message}} 는 메시지 내용으로 대체됩니다.</p>
+                <div class="">
+                    <div><label for="message_action_prompt" class="flex1" data-i18n="Prompt Template">Prompt Template</label></div>
+                    <textarea id="message_action_prompt" class="text_pole textarea_compact" rows="6" placeholder="AI prompt generation instruction..."></textarea>
+                </div>
+                <div class="flex-container flexnowrap marginTop5">
+                    <label for="message_action_message_max_length" class="flex1" data-i18n="Message Max Length">Message Max Length (0=unlimited)</label>
+                    <input id="message_action_message_max_length" class="text_pole widthUnset" type="number" min="0" max="100000" step="500" value="0">
+                </div>
+            </div>
+        </div>
+
+        <hr class="sysHR">
+
+        <div class="inline-drawer">
+            <div class="inline-drawer-toggle inline-drawer-header">
+                <svg class="section_icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
                     <circle cx="12" cy="12" r="3"/>
                     <path d="M12 1v4m0 14v4m11-11h-4M5 12H1m16.95-6.95l-2.83 2.83M9.88 14.12l-2.83 2.83m0-9.9l2.83 2.83m4.24 4.24l2.83 2.83"/>
                 </svg>

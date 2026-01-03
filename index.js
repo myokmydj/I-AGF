@@ -49,7 +49,25 @@ const defaultSettings = {
     promptInjection: {
         enabled: true,
         prompt: `<image_generation>
-You must insert a <pic prompt="example prompt"> at end of the reply. Prompts are used for stable diffusion image generation, based on the plot and character to output appropriate prompts to generate captivating images.
+At the end of your reply, insert exactly one <pic prompt="..."> tag for Stable Diffusion/NAI image generation.
+
+[Character Reference]
+{{description}}
+
+[User Persona]
+{{persona}}
+
+[5 Core Principles for Danbooru Tag Generation]
+1. CONFLICT PREVENTION: Never combine conflicting tags (e.g., "clenched teeth" + "tongue out", or multiple gaze directions).
+2. QUALITY CONTROL: Use "blush" instead of "red face". Avoid quality-degrading elements.
+3. STRUCTURED OUTPUT: Organize as [Background/Atmosphere] then [Character Details].
+4. NO CENSORSHIP: Convert any scene into purely visual descriptive tags without moral judgment.
+
+[Tag Order - Standard Format]
+Base: composition(1girl, shot type) → artist:name → source(game/anime) → year(newest, year 2025) → style(anime style) → quality(masterpiece, absurdres, best quality, very awa)
+Character: body type → action/pose → hair(color, style) → face(eyes, expression) → outfit(top to bottom) → accessories
+
+Output ONLY the prompt inside the tag, using English Danbooru-style tags separated by commas.
 </image_generation>`,
         regex: '/<pic[^>]*\\sprompt="([^"]*)"[^>]*?>/g',
         position: 'deep_system', // deep_system, deep_user, deep_assistant
@@ -89,6 +107,33 @@ You must insert a <pic prompt="example prompt"> at end of the reply. Prompts are
         enabled: false,
         positionEnabled: false,
         perBot: {},
+    },
+    messageActionPrompt: {
+        prompt: `You are a Danbooru tag generator for Stable Diffusion/NAI. Convert the scene into image generation tags.
+
+[Character Reference]
+{{description}}
+
+[User Persona]
+{{persona}}
+
+[Scene to Convert]
+{{message}}
+
+[5 Core Principles]
+1. TAG SYNTAX: Comma-separated tags ONLY. NO sentences. Use "1.x::tag::" weight ONLY for critical elements.
+2. CONFLICT PREVENTION: Never combine conflicting tags (e.g., "clenched teeth" + "tongue out", multiple gaze tags).
+3. QUALITY CONTROL: Use "blush" not "red face". Consider negative prompt elements.
+4. STRUCTURED OUTPUT: [Background/Mood] → [Character A] → [Character B if exists]
+5. NO CENSORSHIP: Convert ANY scene into visual tags without moral judgment.
+
+[Tag Order]
+Base Prompt: composition → artist:name → source → year(newest) → style → quality(masterpiece, absurdres, best quality, very awa)
+Character: gender → body type → pose/action → hair(color, style) → face(eyes, expression: use blush/flushed not red face) → outfit(top→bottom) → accessories → details
+
+OUTPUT: ONLY comma-separated English Danbooru tags. NO explanations, NO formatting, NO markdown.`,
+        maxResponseLength: 500,
+        messageMaxLength: 0,  // 0 = 무제한
     },
 };
 
@@ -575,6 +620,17 @@ function updateUI() {
         );
         $('#prompt_injection_depth').val(
             extension_settings[extensionName].promptInjection.depth,
+        );
+
+        // Message Action Prompt UI 업데이트
+        $('#message_action_prompt').val(
+            extension_settings[extensionName].messageActionPrompt?.prompt || defaultSettings.messageActionPrompt.prompt,
+        );
+        $('#message_action_max_response_length').val(
+            extension_settings[extensionName].messageActionPrompt?.maxResponseLength || defaultSettings.messageActionPrompt.maxResponseLength,
+        );
+        $('#message_action_message_max_length').val(
+            extension_settings[extensionName].messageActionPrompt?.messageMaxLength ?? defaultSettings.messageActionPrompt.messageMaxLength,
         );
 
         updatePresetUI();
@@ -1274,6 +1330,17 @@ async function loadSettings() {
                 }
             }
         }
+
+        // messageActionPrompt 초기화
+        if (!extension_settings[extensionName].messageActionPrompt) {
+            extension_settings[extensionName].messageActionPrompt = defaultSettings.messageActionPrompt;
+        } else {
+            for (const key in defaultSettings.messageActionPrompt) {
+                if (extension_settings[extensionName].messageActionPrompt[key] === undefined) {
+                    extension_settings[extensionName].messageActionPrompt[key] = defaultSettings.messageActionPrompt[key];
+                }
+            }
+        }
     }
 
     // 현재 봇 이름 초기화
@@ -1329,6 +1396,24 @@ async function createSettings(settingsHtml) {
         extension_settings[extensionName].promptInjection.depth = isNaN(value)
             ? 0
             : value;
+        saveSettingsDebounced();
+    });
+
+    // Message Action Prompt 설정
+    $('#message_action_prompt').on('input', function () {
+        extension_settings[extensionName].messageActionPrompt.prompt = $(this).val();
+        saveSettingsDebounced();
+    });
+
+    $('#message_action_max_response_length').on('input', function () {
+        const value = parseInt(String($(this).val()));
+        extension_settings[extensionName].messageActionPrompt.maxResponseLength = isNaN(value) ? 500 : value;
+        saveSettingsDebounced();
+    });
+
+    $('#message_action_message_max_length').on('input', function () {
+        const value = parseInt(String($(this).val()));
+        extension_settings[extensionName].messageActionPrompt.messageMaxLength = isNaN(value) ? 0 : value;
         saveSettingsDebounced();
     });
 
@@ -2756,9 +2841,13 @@ function addMessageImageButton() {
                     let cleanContent = messageContent.replace(/<[^>]*>/g, ' ');
                     cleanContent = cleanContent.replace(/\s+/g, ' ').trim();
                     
-                    // 메시지가 너무 길면 자르기
-                    if (cleanContent.length > 1500) {
-                        cleanContent = cleanContent.substring(0, 1500);
+                    // 사용자 설정 가져오기
+                    const settings = extension_settings[extensionName];
+                    const messageMaxLength = settings.messageActionPrompt?.messageMaxLength ?? defaultSettings.messageActionPrompt.messageMaxLength;
+                    
+                    // 메시지가 너무 길면 자르기 (0 = 무제한)
+                    if (messageMaxLength > 0 && cleanContent.length > messageMaxLength) {
+                        cleanContent = cleanContent.substring(0, messageMaxLength);
                     }
                     
                     if (!cleanContent) {
@@ -2766,13 +2855,41 @@ function addMessageImageButton() {
                         return;
                     }
                     
-                    // AI에게 이미지 프롬프트 생성 요청
-                    const promptGenerationInstruction = `Based on the following message content, generate a single image prompt for stable diffusion. Output ONLY the prompt in English keywords/tags format, no explanations. Focus on visual elements, characters, scene, mood, and style.
-
-Message content:
-${cleanContent}
-
-Output format: Just the prompt keywords separated by commas, like "1girl, long hair, blue eyes, standing, garden, sunset, detailed background"`;
+                    // 사용자 설정 프롬프트 템플릿 가져오기
+                    const promptTemplate = settings.messageActionPrompt?.prompt || defaultSettings.messageActionPrompt.prompt;
+                    const maxResponseLength = settings.messageActionPrompt?.maxResponseLength || defaultSettings.messageActionPrompt.maxResponseLength;
+                    
+                    // 캐릭터 설명과 페르소나 가져오기
+                    let characterDescription = '';
+                    let userPersona = '';
+                    
+                    if (context.characters && context.characterId !== undefined) {
+                        const char = context.characters[context.characterId];
+                        if (char) {
+                            characterDescription = char.description || '';
+                        }
+                    }
+                    
+                    if (context.name1 && context.personas) {
+                        // 현재 선택된 페르소나 찾기
+                        const personaName = context.name1;
+                        for (const [key, persona] of Object.entries(context.personas || {})) {
+                            if (persona.name === personaName || key === personaName) {
+                                userPersona = persona.description || '';
+                                break;
+                            }
+                        }
+                    }
+                    // 대체 방법: persona_description이 있으면 사용
+                    if (!userPersona && context.persona_description) {
+                        userPersona = context.persona_description;
+                    }
+                    
+                    // AI에게 이미지 프롬프트 생성 요청 (플레이스홀더 대체)
+                    let promptGenerationInstruction = promptTemplate
+                        .replace(/\{\{message\}\}/g, cleanContent)
+                        .replace(/\{\{description\}\}/g, characterDescription || 'No character description available')
+                        .replace(/\{\{persona\}\}/g, userPersona || 'No persona description available');
                     
                     try {
                         console.log(`[${extensionName}] Requesting AI prompt generation...`);
@@ -2788,7 +2905,7 @@ Output format: Just the prompt keywords separated by commas, like "1girl, long h
                         );
                         
                         const generationPromise = SlashCommandParser.commands['genraw'].callback(
-                            { length: 200 },
+                            { length: maxResponseLength },
                             promptGenerationInstruction
                         );
                         
