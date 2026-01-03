@@ -77,6 +77,7 @@ You must insert a <pic prompt="example prompt"> at end of the reply. Prompts are
         selectedCharacter: null,
         defaultFidelity: 0.6,
         defaultStyleAware: false,
+        perBot: {},
     },
     tagMatching: {
         enabled: false,
@@ -152,11 +153,407 @@ function stripBase64Header(base64Data) {
     return base64Data;
 }
 
+function updateToggleButtonUI() {
+    const isEnabled = extension_settings[extensionName].insertType !== INSERT_TYPE.DISABLED;
+    $('#iagf_toggle').toggleClass('selected', isEnabled);
+    $('#iagf_toggle span').text(isEnabled ? 'IAGF Enabled' : 'IAGF Disabled');
+    const icon = $('#iagf_toggle > div');
+    icon.removeClass('fa-power-off fa-check');
+    icon.addClass(isEnabled ? 'fa-check' : 'fa-power-off');
+}
+
+function initPresetGalleryModal() {
+    if ($('#iagf_preset_gallery_modal').length) return;
+    
+    const modalHtml = `
+    <div id="iagf_preset_gallery_modal" class="iagf-modal" style="display:none;">
+        <div class="iagf-modal-overlay"></div>
+        <div class="iagf-modal-content">
+            <div class="iagf-modal-header">
+                <h3><i class="fa-solid fa-images"></i> Preset Gallery</h3>
+                <button class="iagf-modal-close"><i class="fa-solid fa-times"></i></button>
+            </div>
+            <div class="iagf-modal-body">
+                <div id="iagf_preset_cards_container" class="iagf-preset-cards"></div>
+            </div>
+        </div>
+    </div>
+    <style>
+        .iagf-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 9999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .iagf-modal-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+        }
+        .iagf-modal-content {
+            position: relative;
+            background: var(--SmartThemeBlurTintColor, #1a1a1a);
+            border-radius: 10px;
+            max-width: 800px;
+            width: 90%;
+            max-height: 80vh;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        }
+        .iagf-modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 20px;
+            border-bottom: 1px solid var(--SmartThemeBorderColor, #444);
+        }
+        .iagf-modal-header h3 {
+            margin: 0;
+            color: var(--SmartThemeBodyColor, #fff);
+        }
+        .iagf-modal-close {
+            background: none;
+            border: none;
+            color: var(--SmartThemeBodyColor, #fff);
+            cursor: pointer;
+            font-size: 1.2em;
+            padding: 5px;
+        }
+        .iagf-modal-close:hover {
+            color: var(--SmartThemeQuoteColor, #f66);
+        }
+        .iagf-modal-body {
+            padding: 20px;
+            overflow-y: auto;
+            flex: 1;
+        }
+        .iagf-preset-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 15px;
+        }
+        .iagf-preset-card {
+            background: var(--SmartThemeBlurTintColor, #2a2a2a);
+            border: 2px solid var(--SmartThemeBorderColor, #444);
+            border-radius: 8px;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            transition: all 0.2s;
+        }
+        .iagf-preset-card.active {
+            border-color: var(--SmartThemeQuoteColor, #4a9);
+            box-shadow: 0 0 10px rgba(68, 170, 153, 0.3);
+        }
+        .iagf-preset-card-preview {
+            width: 100%;
+            height: 150px;
+            background: var(--SmartThemeBorderColor, #333);
+            border-radius: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 10px;
+            overflow: hidden;
+        }
+        .iagf-preset-card-preview img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .iagf-preset-card-preview .no-preview {
+            color: var(--SmartThemeBodyColor, #888);
+            font-size: 0.9em;
+            text-align: center;
+        }
+        .iagf-preset-card-info {
+            flex: 1;
+        }
+        .iagf-preset-card-name {
+            font-weight: bold;
+            color: var(--SmartThemeBodyColor, #fff);
+            margin-bottom: 5px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .iagf-preset-card-name input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+        .iagf-preset-card-actions {
+            display: flex;
+            gap: 5px;
+            margin-top: 10px;
+        }
+        .iagf-preset-card-actions button {
+            flex: 1;
+            padding: 5px 8px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.85em;
+            transition: all 0.2s;
+        }
+        .iagf-btn-preview {
+            background: var(--SmartThemeQuoteColor, #4a9);
+            color: white;
+        }
+        .iagf-btn-preview:hover {
+            filter: brightness(1.2);
+        }
+        .iagf-btn-preview:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .iagf-btn-preview.generating {
+            animation: pulse 1s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+    </style>
+    `;
+    $('body').append(modalHtml);
+    
+    $('#iagf_preset_gallery_modal .iagf-modal-overlay, #iagf_preset_gallery_modal .iagf-modal-close').on('click', closePresetGallery);
+}
+
+function openPresetGallery() {
+    renderPresetCards();
+    $('#iagf_preset_gallery_modal').fadeIn(200);
+}
+
+function closePresetGallery() {
+    $('#iagf_preset_gallery_modal').fadeOut(200);
+}
+
+function renderPresetCards() {
+    const settings = extension_settings[extensionName];
+    const container = $('#iagf_preset_cards_container');
+    container.empty();
+    
+    for (const [key, preset] of Object.entries(settings.presets)) {
+        const isActive = settings.currentPreset === key;
+        const previewImage = preset.previewImage || null;
+        
+        const cardHtml = `
+            <div class="iagf-preset-card ${isActive ? 'active' : ''}" data-preset-key="${key}">
+                <div class="iagf-preset-card-preview">
+                    ${previewImage 
+                        ? `<img src="${previewImage}" alt="${escapeHtmlAttribute(preset.name)}">` 
+                        : '<div class="no-preview"><i class="fa-solid fa-image"></i><br>No Preview</div>'}
+                </div>
+                <div class="iagf-preset-card-info">
+                    <div class="iagf-preset-card-name">
+                        <input type="checkbox" class="preset-checkbox" ${isActive ? 'checked' : ''} data-preset-key="${key}">
+                        <span>${escapeHtmlAttribute(preset.name)}</span>
+                    </div>
+                </div>
+                <div class="iagf-preset-card-actions">
+                    <button class="iagf-btn-preview" data-preset-key="${key}">
+                        <i class="fa-solid fa-wand-magic-sparkles"></i> Generate Preview
+                    </button>
+                </div>
+            </div>
+        `;
+        container.append(cardHtml);
+    }
+    
+    container.find('.preset-checkbox').on('change', function() {
+        const presetKey = $(this).data('preset-key');
+        if ($(this).prop('checked')) {
+            settings.currentPreset = presetKey;
+            saveSettingsDebounced();
+            updatePresetUI();
+            updateStatusPanel();
+            renderPresetCards();
+            toastr.success(`Preset "${settings.presets[presetKey].name}" activated`);
+        }
+    });
+    
+    container.find('.iagf-btn-preview').on('click', async function() {
+        const presetKey = $(this).data('preset-key');
+        const btn = $(this);
+        
+        if (btn.prop('disabled')) return;
+        
+        btn.prop('disabled', true).addClass('generating');
+        btn.html('<i class="fa-solid fa-spinner fa-spin"></i> Generating...');
+        
+        try {
+            await generatePresetPreview(presetKey);
+            renderPresetCards();
+            toastr.success('Preview generated!');
+        } catch (error) {
+            console.error('Preview generation failed:', error);
+            toastr.error('Failed to generate preview');
+        } finally {
+            btn.prop('disabled', false).removeClass('generating');
+            btn.html('<i class="fa-solid fa-wand-magic-sparkles"></i> Generate Preview');
+        }
+    });
+}
+
+async function generatePresetPreview(presetKey) {
+    const settings = extension_settings[extensionName];
+    const preset = settings.presets[presetKey];
+    
+    if (!preset) return;
+    
+    const samplePrompt = 'a beautiful anime girl with long flowing hair, detailed eyes, soft lighting, portrait';
+    const finalPrompt = ((preset.prefixPrompt || '') + ' ' + samplePrompt + ' ' + (preset.suffixPrompt || '')).trim();
+    const negativePrompt = preset.negativePrompt || '';
+    
+    try {
+        // 직접 NAI API 호출하여 이미지 생성
+        const imageData = await generatePreviewImage(finalPrompt, negativePrompt);
+        
+        if (imageData) {
+            preset.previewImage = imageData.startsWith('data:') ? imageData : 'data:image/png;base64,' + imageData;
+            saveSettingsDebounced();
+        } else {
+            throw new Error('No image data returned');
+        }
+    } catch (error) {
+        console.error('Failed to generate preset preview:', error);
+        throw error;
+    }
+}
+
+async function generatePreviewImage(prompt, negativePrompt) {
+    const sdSettings = extension_settings.sd || {};
+    
+    const model = sdSettings.model || 'nai-diffusion-4-5-full';
+    const sampler = sdSettings.sampler || 'k_euler_ancestral';
+    const scheduler = sdSettings.scheduler || 'native';
+    const steps = Math.min(sdSettings.steps || 28, 50);
+    const scale = parseFloat(sdSettings.scale) || 5.0;
+    // 미리보기용 작은 이미지 크기
+    const width = 512;
+    const height = 768;
+    const seed = Math.floor(Math.random() * 2147483647);
+    
+    const requestBody = {
+        input: prompt,
+        model: model,
+        action: 'generate',
+        parameters: {
+            params_version: 3,
+            width: width,
+            height: height,
+            noise_schedule: scheduler,
+            controlnet_strength: 1,
+            dynamic_thresholding: false,
+            scale: scale,
+            sampler: sampler,
+            steps: steps,
+            seed: seed,
+            n_samples: 1,
+            ucPreset: 0,
+            negative_prompt: negativePrompt,
+            qualityToggle: true,
+            use_coords: false,
+            legacy: false,
+            legacy_v3_extend: false,
+            prefer_brownian: true,
+            autoSmea: false,
+            v4_prompt: {
+                caption: {
+                    base_caption: prompt,
+                    char_captions: [],
+                },
+                use_coords: false,
+                use_order: true,
+            },
+            v4_negative_prompt: {
+                caption: {
+                    base_caption: negativePrompt,
+                    char_captions: [],
+                },
+                legacy_uc: false,
+            },
+        },
+    };
+    
+    let response;
+    
+    try {
+        // 플러그인 API 시도
+        response = await fetch('/api/plugins/nai-reference-image/generate', {
+            method: 'POST',
+            headers: getRequestHeaders(),
+            body: JSON.stringify(requestBody),
+        });
+        
+        if (response.status === 404) {
+            throw new Error('Plugin not available');
+        }
+    } catch (pluginError) {
+        // 기본 NAI API로 폴백
+        const fallbackBody = {
+            prompt: prompt,
+            model: model,
+            sampler: sampler,
+            scheduler: scheduler,
+            steps: steps,
+            scale: scale,
+            width: width,
+            height: height,
+            negative_prompt: negativePrompt,
+            seed: seed,
+        };
+        
+        response = await fetch('/api/novelai/generate-image', {
+            method: 'POST',
+            headers: getRequestHeaders(),
+            body: JSON.stringify(fallbackBody),
+        });
+    }
+    
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`NAI API error: ${response.status} - ${errorText}`);
+    }
+    
+    const imageData = await response.text();
+    
+    if (!imageData) {
+        throw new Error('NAI API returned empty response');
+    }
+    
+    return imageData;
+}
+
+function onToggleExtension() {
+    const settings = extension_settings[extensionName];
+    if (settings.insertType === INSERT_TYPE.DISABLED) {
+        settings.insertType = INSERT_TYPE.INLINE;
+    } else {
+        settings.insertType = INSERT_TYPE.DISABLED;
+    }
+    saveSettingsDebounced();
+    updateUI();
+    updateToggleButtonUI();
+}
+
 function updateUI() {
     $('#auto_generation').toggleClass(
         'selected',
         extension_settings[extensionName].insertType !== INSERT_TYPE.DISABLED,
     );
+    updateToggleButtonUI();
 
     // 只在表单元素存在时更新它们
     if ($('#image_generation_insert_type').length) {
@@ -300,119 +697,222 @@ function updateVibeImagesGrid() {
     });
 }
 
+// 현재 봇의 캐릭터 레퍼런스 데이터 가져오기
+function getCurrentBotCharacterReferences() {
+    const settings = extension_settings[extensionName];
+    const botName = getCurrentBotName();
+    
+    if (!botName || !settings.characterReference?.perBot) {
+        return null;
+    }
+    
+    return settings.characterReference.perBot[botName] || null;
+}
+
+// 현재 봇의 캐릭터 레퍼런스 데이터 설정
+function setCurrentBotCharacterReferences(data) {
+    const settings = extension_settings[extensionName];
+    const botName = getCurrentBotName();
+    
+    if (!botName) {
+        return;
+    }
+    
+    if (!settings.characterReference) {
+        settings.characterReference = defaultSettings.characterReference;
+    }
+    if (!settings.characterReference.perBot) {
+        settings.characterReference.perBot = {};
+    }
+    
+    settings.characterReference.perBot[botName] = data;
+    saveSettingsDebounced();
+}
+
+// 봇 데이터 초기화
+function initBotCharacterRefData() {
+    return {
+        characters: {},        // { charName: { images: [], activeImageId, fidelity, styleAware } }
+        activeCharacter: null, // 현재 활성화된 캐릭터 이름
+    };
+}
+
+// 캐릭터 추가
+function addCharacterToBot(charName) {
+    const botName = getCurrentBotName();
+    if (!botName || !charName) return false;
+    
+    let botData = getCurrentBotCharacterReferences();
+    if (!botData || !botData.characters) {
+        botData = initBotCharacterRefData();
+    }
+    
+    if (botData.characters[charName]) {
+        toastr.warning('이미 존재하는 캐릭터입니다');
+        return false;
+    }
+    
+    botData.characters[charName] = {
+        images: [],
+        activeImageId: null,
+        fidelity: extension_settings[extensionName].characterReference.defaultFidelity,
+        styleAware: extension_settings[extensionName].characterReference.defaultStyleAware,
+    };
+    
+    setCurrentBotCharacterReferences(botData);
+    return true;
+}
+
+// 캐릭터에 이미지 추가
+function addImageToCharacter(charName, imageData, imageName) {
+    const botData = getCurrentBotCharacterReferences();
+    if (!botData || !botData.characters || !botData.characters[charName]) return null;
+    
+    const id = generateImageId();
+    const newImage = {
+        id: id,
+        data: imageData,
+        name: imageName,
+    };
+    
+    botData.characters[charName].images.push(newImage);
+    
+    // 첫 이미지면 자동 선택
+    if (botData.characters[charName].images.length === 1) {
+        botData.characters[charName].activeImageId = id;
+    }
+    
+    setCurrentBotCharacterReferences(botData);
+    return newImage;
+}
+
 function updateCharacterReferenceUI() {
     const settings = extension_settings[extensionName];
     const charSettings = settings.characterReference;
+    const botName = getCurrentBotName();
 
     $('#char_reference_enabled').prop('checked', charSettings.enabled);
-    $('#char_ref_fidelity').val(charSettings.defaultFidelity);
-    $('#char_ref_style_aware').prop('checked', charSettings.defaultStyleAware);
+    
+    // 현재 봇 이름 표시
+    const botNameDisplay = botName || 'No bot selected';
+    $('#current_char_ref_bot_name').text(botNameDisplay);
 
-    const charSelect = $('#char_reference_select');
-    charSelect.empty();
-    charSelect.append('<option value="">-- Select Character --</option>');
-
-    for (const charName of Object.keys(charSettings.characters)) {
-        charSelect.append(
-            `<option value="${escapeHtmlAttribute(charName)}">${escapeHtmlAttribute(charName)}</option>`,
-        );
-    }
-
-    if (charSettings.selectedCharacter) {
-        charSelect.val(charSettings.selectedCharacter);
-    }
-
+    updateCharacterSelectUI();
     updateCharacterImagesGrid();
+    updateCharacterSettingsUI();
+}
+
+function updateCharacterSelectUI(selectCharName = null) {
+    const botData = getCurrentBotCharacterReferences();
+    const select = $('#char_reference_select');
+    const currentVal = selectCharName || select.val();
+    
+    select.empty();
+    select.append('<option value="">-- 캐릭터 선택 --</option>');
+    
+    if (!botData || !botData.characters) return;
+    
+    for (const charName of Object.keys(botData.characters)) {
+        const isActive = botData.activeCharacter === charName;
+        select.append(`<option value="${escapeHtmlAttribute(charName)}">${escapeHtmlAttribute(charName)}${isActive ? ' ★' : ''}</option>`);
+    }
+    
+    // 선택값 복원
+    if (currentVal && botData.characters[currentVal]) {
+        select.val(currentVal);
+    }
 }
 
 function updateCharacterImagesGrid() {
-    const settings = extension_settings[extensionName];
-    const charSettings = settings.characterReference;
     const container = $('#char_reference_images_container');
     container.empty();
-
-    const selectedChar = charSettings.selectedCharacter;
-    if (!selectedChar || !charSettings.characters[selectedChar]) {
-        container.append('<p class="hint">Select a character to view/add reference images</p>');
+    
+    const botName = getCurrentBotName();
+    const botData = getCurrentBotCharacterReferences();
+    
+    if (!botName) {
+        container.append('<p class="hint">채팅을 열어 봇을 선택하세요</p>');
         return;
     }
-
-    const charData = charSettings.characters[selectedChar];
-    const selectedImageId = charData.selectedImageId || null;
     
-    for (const [id, image] of Object.entries(charData.images || {})) {
-        const isSelected = selectedImageId === id;
-        const isActive = image.active !== false;
+    const selectedChar = $('#char_reference_select').val();
+    if (!selectedChar || !botData?.characters?.[selectedChar]) {
+        container.append('<p class="hint">캐릭터를 선택하거나 추가하세요</p>');
+        return;
+    }
+    
+    const charData = botData.characters[selectedChar];
+    const isCharActive = botData.activeCharacter === selectedChar;
+    
+    if (!charData.images || charData.images.length === 0) {
+        container.append('<p class="hint">이미지를 추가하세요</p>');
+        return;
+    }
+    
+    charData.images.forEach((img) => {
+        const isSelected = charData.activeImageId === img.id;
         const itemHtml = `
-            <div class="image_grid_item ${isSelected ? 'selected' : ''} ${!isActive ? 'disabled' : ''}" data-id="${id}">
-                <img src="${image.data}" alt="${escapeHtmlAttribute(image.name)}" title="${escapeHtmlAttribute(image.name)}">
-                <button class="toggle_btn ${isActive ? 'active' : ''}" data-id="${id}" title="${isActive ? 'Click to disable' : 'Click to enable'}">
-                    <i class="fa-solid ${isActive ? 'fa-check' : 'fa-ban'}"></i>
-                </button>
-                <button class="delete_btn" data-id="${id}"><i class="fa-solid fa-times"></i></button>
-                ${isSelected ? '<span class="selected_badge">IN USE</span>' : ''}
+            <div class="image_grid_item ${isSelected ? 'selected' : ''}" data-id="${img.id}">
+                <img src="${img.data}" alt="${escapeHtmlAttribute(img.name)}" title="${escapeHtmlAttribute(img.name)}">
+                <button class="delete_btn" data-id="${img.id}" title="삭제"><i class="fa-solid fa-xmark"></i></button>
+                ${isSelected ? '<span class="selected_badge">선택됨</span>' : ''}
             </div>
         `;
         container.append(itemHtml);
-    }
-
-    container.find('.image_grid_item').on('click', function (e) {
+    });
+    
+    // 이미지 클릭 - 선택
+    container.find('.image_grid_item').on('click', function(e) {
         if ($(e.target).closest('.delete_btn').length) return;
-        if ($(e.target).closest('.toggle_btn').length) return;
-
+        
         const id = $(this).data('id');
-        const image = charData.images[id];
-        
-        if (image && image.active === false) {
-            toastr.warning('Enable the image first to select it');
-            return;
-        }
-        
-        if (charData.selectedImageId === id) {
-            charData.selectedImageId = null;
+        if (charData.activeImageId === id) {
+            charData.activeImageId = null;
         } else {
-            charData.selectedImageId = id;
+            charData.activeImageId = id;
         }
-        
+        setCurrentBotCharacterReferences(botData);
         updateCharacterImagesGrid();
         updateStatusPanel();
-        saveSettingsDebounced();
     });
-
-    // 토글 버튼 이벤트 (활성화/비활성화)
-    container.find('.toggle_btn').on('click', function (e) {
+    
+    // 삭제 버튼
+    container.find('.delete_btn').on('click', function(e) {
         e.stopPropagation();
         const id = $(this).data('id');
-        const image = charData.images[id];
-        if (image) {
-            image.active = image.active === false;
-            
-            if (image.active === false && charData.selectedImageId === id) {
-                charData.selectedImageId = null;
+        const index = charData.images.findIndex(img => img.id === id);
+        if (index !== -1) {
+            if (charData.activeImageId === id) {
+                charData.activeImageId = null;
             }
-            
+            charData.images.splice(index, 1);
+            setCurrentBotCharacterReferences(botData);
             updateCharacterImagesGrid();
             updateStatusPanel();
-            saveSettingsDebounced();
         }
-    });
-
-    // 삭제 버튼 이벤트
-    container.find('.delete_btn').on('click', function (e) {
-        e.stopPropagation();
-        const id = $(this).data('id');
-        
-        if (charData.selectedImageId === id) {
-            charData.selectedImageId = null;
-        }
-        
-        delete charData.images[id];
-        updateCharacterImagesGrid();
-        updateStatusPanel();
-        saveSettingsDebounced();
     });
 }
 
+function updateCharacterSettingsUI() {
+    const botData = getCurrentBotCharacterReferences();
+    const selectedChar = $('#char_reference_select').val();
+    
+    if (!botData || !selectedChar || !botData.characters?.[selectedChar]) {
+        $('#char_ref_fidelity').val(0.6);
+        $('#char_ref_style_aware').prop('checked', false);
+        $('#char_ref_activate_btn').removeClass('active').find('span').text('활성화');
+        return;
+    }
+    
+    const charData = botData.characters[selectedChar];
+    const isActive = botData.activeCharacter === selectedChar;
+    
+    $('#char_ref_fidelity').val(charData.fidelity ?? 0.6);
+    $('#char_ref_style_aware').prop('checked', charData.styleAware ?? false);
+    $('#char_ref_activate_btn')
+        .toggleClass('active', isActive)
+        .find('span').text(isActive ? '활성화됨 ★' : '활성화');
+}
 function updateTagMatchingUI() {
     const settings = extension_settings[extensionName];
     const tagSettings = settings.tagMatching || defaultSettings.tagMatching;
@@ -749,6 +1249,10 @@ async function loadSettings() {
                     extension_settings[extensionName].characterReference[key] = defaultSettings.characterReference[key];
                 }
             }
+            // perBot 구조 초기화 확인
+            if (!extension_settings[extensionName].characterReference.perBot) {
+                extension_settings[extensionName].characterReference.perBot = {};
+            }
         }
 
         if (!extension_settings[extensionName].tagMatching) {
@@ -966,72 +1470,121 @@ async function createSettings(settingsHtml) {
 
     $('#char_reference_enabled').on('change', function () {
         extension_settings[extensionName].characterReference.enabled = $(this).prop('checked');
+        updateStatusPanel();
         saveSettingsDebounced();
     });
 
+    // ===== 캐릭터 레퍼런스 이벤트 핸들러 (레거시 구조) =====
+    
+    // 캐릭터 선택 변경
     $('#char_reference_select').on('change', function () {
-        const charName = $(this).val();
-        extension_settings[extensionName].characterReference.selectedCharacter = charName || null;
         updateCharacterImagesGrid();
-        updateStatusPanel();
-        saveSettingsDebounced();
+        updateCharacterSettingsUI();
     });
-
-    $('#char_ref_fidelity').on('input', function () {
-        const value = parseFloat($(this).val());
-        extension_settings[extensionName].characterReference.defaultFidelity = isNaN(value) ? 0.6 : value;
-        saveSettingsDebounced();
-    });
-
-    $('#char_ref_style_aware').on('change', function () {
-        extension_settings[extensionName].characterReference.defaultStyleAware = $(this).prop('checked');
-        saveSettingsDebounced();
-    });
-
-    $('#char_reference_add').on('click', function () {
-        const charName = prompt('Enter character name:');
-        if (!charName || charName.trim() === '') return;
-
-        const trimmedName = charName.trim();
-        if (extension_settings[extensionName].characterReference.characters[trimmedName]) {
-            toastr.warning('Character already exists');
+    
+    // 캐릭터 추가
+    $('#char_add_btn').on('click', function () {
+        const botName = getCurrentBotName();
+        if (!botName) {
+            toastr.warning('채팅을 열어 봇을 선택하세요');
             return;
         }
-
-        extension_settings[extensionName].characterReference.characters[trimmedName] = {
-            images: {},
-            selectedImageId: null,
-            fidelity: extension_settings[extensionName].characterReference.defaultFidelity,
-            styleAware: extension_settings[extensionName].characterReference.defaultStyleAware,
-        };
-        extension_settings[extensionName].characterReference.selectedCharacter = trimmedName;
-        updateCharacterReferenceUI();
-        updateStatusPanel();
-        saveSettingsDebounced();
-        toastr.success(`Character "${trimmedName}" added`);
+        
+        const charName = prompt('캐릭터 이름을 입력하세요:');
+        if (!charName || !charName.trim()) return;
+        
+        if (addCharacterToBot(charName.trim())) {
+            updateCharacterSelectUI(charName.trim());
+            updateCharacterImagesGrid();
+            updateCharacterSettingsUI();
+            toastr.success(`캐릭터 "${charName.trim()}" 추가됨`);
+        }
     });
-
-    $('#char_reference_delete').on('click', function () {
-        const selectedChar = extension_settings[extensionName].characterReference.selectedCharacter;
+    
+    // 캐릭터 삭제
+    $('#char_delete_btn').on('click', function () {
+        const selectedChar = $('#char_reference_select').val();
         if (!selectedChar) {
-            toastr.warning('No character selected');
+            toastr.warning('삭제할 캐릭터를 선택하세요');
             return;
         }
-
-        if (confirm(`Delete character "${selectedChar}" and all its reference images?`)) {
-            delete extension_settings[extensionName].characterReference.characters[selectedChar];
-            extension_settings[extensionName].characterReference.selectedCharacter = null;
-            updateCharacterReferenceUI();
+        
+        if (!confirm(`"${selectedChar}" 캐릭터와 모든 이미지를 삭제하시겠습니까?`)) return;
+        
+        const botData = getCurrentBotCharacterReferences();
+        if (botData && botData.characters[selectedChar]) {
+            delete botData.characters[selectedChar];
+            if (botData.activeCharacter === selectedChar) {
+                botData.activeCharacter = null;
+            }
+            setCurrentBotCharacterReferences(botData);
+            updateCharacterSelectUI();
+            updateCharacterImagesGrid();
+            updateCharacterSettingsUI();
             updateStatusPanel();
-            saveSettingsDebounced();
-            toastr.success(`Character "${selectedChar}" deleted`);
+            toastr.success(`캐릭터 "${selectedChar}" 삭제됨`);
         }
     });
-
-    $('#char_reference_image_add_btn').on('click', function () {
-        const selectedChar = extension_settings[extensionName].characterReference.selectedCharacter;
+    
+    // 캐릭터 활성화 토글
+    $('#char_ref_activate_btn').on('click', function () {
+        const selectedChar = $('#char_reference_select').val();
         if (!selectedChar) {
-            toastr.warning('Please select a character first');
+            toastr.warning('캐릭터를 먼저 선택하세요');
+            return;
+        }
+        
+        const botData = getCurrentBotCharacterReferences();
+        if (!botData) return;
+        
+        const charData = botData.characters[selectedChar];
+        if (!charData || !charData.activeImageId) {
+            toastr.warning('이미지를 먼저 선택하세요');
+            return;
+        }
+        
+        // 토글
+        if (botData.activeCharacter === selectedChar) {
+            botData.activeCharacter = null;
+        } else {
+            botData.activeCharacter = selectedChar;
+        }
+        
+        setCurrentBotCharacterReferences(botData);
+        updateCharacterSelectUI();
+        updateCharacterSettingsUI();
+        updateStatusPanel();
+    });
+    
+    // Fidelity 변경
+    $('#char_ref_fidelity').on('input', function () {
+        const selectedChar = $('#char_reference_select').val();
+        if (!selectedChar) return;
+        
+        const botData = getCurrentBotCharacterReferences();
+        if (botData && botData.characters[selectedChar]) {
+            botData.characters[selectedChar].fidelity = parseFloat($(this).val()) || 0.6;
+            setCurrentBotCharacterReferences(botData);
+        }
+    });
+    
+    // Style Aware 변경
+    $('#char_ref_style_aware').on('change', function () {
+        const selectedChar = $('#char_reference_select').val();
+        if (!selectedChar) return;
+        
+        const botData = getCurrentBotCharacterReferences();
+        if (botData && botData.characters[selectedChar]) {
+            botData.characters[selectedChar].styleAware = $(this).prop('checked');
+            setCurrentBotCharacterReferences(botData);
+        }
+    });
+    
+    // 이미지 추가 버튼
+    $('#char_image_add_btn').on('click', function () {
+        const selectedChar = $('#char_reference_select').val();
+        if (!selectedChar) {
+            toastr.warning('캐릭터를 먼저 선택하세요');
             return;
         }
         $('#char_reference_image_upload').trigger('click');
@@ -1041,31 +1594,24 @@ async function createSettings(settingsHtml) {
         const file = e.target.files[0];
         if (!file) return;
 
-        const selectedChar = extension_settings[extensionName].characterReference.selectedCharacter;
-        if (!selectedChar) return;
+        const selectedChar = $('#char_reference_select').val();
+        if (!selectedChar) {
+            toastr.warning('캐릭터를 먼저 선택하세요');
+            $(this).val('');
+            return;
+        }
 
         try {
             const base64 = await fileToBase64(file);
             const resizedBase64 = await resizeImageForReference(base64, 1024);
-            const id = generateImageId();
-            const charData = extension_settings[extensionName].characterReference.characters[selectedChar];
-            if (!charData.images) {
-                charData.images = {};
-            }
-            charData.images[id] = {
-                name: file.name,
-                data: resizedBase64,
-                active: true,
-            };
-            if (!charData.selectedImageId) {
-                charData.selectedImageId = id;
-            }
+            
+            addImageToCharacter(selectedChar, resizedBase64, file.name);
+            
             updateCharacterImagesGrid();
             updateStatusPanel();
-            saveSettingsDebounced();
-            toastr.success('Reference image added (resized for NAI)');
+            toastr.success('이미지가 추가되었습니다');
         } catch (error) {
-            toastr.error('Failed to add reference image');
+            toastr.error('이미지 추가 실패');
         }
 
         $(this).val('');
@@ -1298,33 +1844,24 @@ function getNAIExtraParams(prompt) {
     }
 
     if (settings.characterReference?.enabled) {
-        const targetChar = settings.characterReference.selectedCharacter;
-
-        if (targetChar && settings.characterReference.characters?.[targetChar]) {
-            const charData = settings.characterReference.characters[targetChar];
-            let selectedImageId = charData.selectedImageId;
+        // 레거시 구조 (캐릭터 > 이미지) perBot
+        const botData = getCurrentBotCharacterReferences();
+        
+        if (botData && botData.activeCharacter) {
+            const charData = botData.characters[botData.activeCharacter];
             
-            if (!selectedImageId && charData.images) {
-                const imageIds = Object.keys(charData.images);
-                for (const imgId of imageIds) {
-                    if (charData.images[imgId].active !== false && charData.images[imgId].data) {
-                        selectedImageId = imgId;
-                        break;
-                    }
-                }
-            }
-            
-            if (selectedImageId && charData.images && charData.images[selectedImageId]) {
-                const selectedImage = charData.images[selectedImageId];
-                if (selectedImage.active !== false && selectedImage.data) {
+            if (charData && charData.activeImageId) {
+                const activeImage = charData.images.find(img => img.id === charData.activeImageId);
+                
+                if (activeImage && activeImage.data) {
                     extraParams.characterReference = {
-                        characterName: targetChar,
-                        images: [selectedImage.data],
+                        characterName: botData.activeCharacter,
+                        images: [activeImage.data],
                         fidelity: charData.fidelity ?? settings.characterReference.defaultFidelity,
                         styleAware: charData.styleAware ?? settings.characterReference.defaultStyleAware,
                     };
-                    currentNAIStatus.characterReference = targetChar;
-                    currentNAIStatus.characterReferenceImage = selectedImage.name;
+                    currentNAIStatus.characterReference = botData.activeCharacter;
+                    currentNAIStatus.characterReferenceImage = activeImage.name;
                 }
             }
         }
@@ -1375,11 +1912,12 @@ function updateStatusPanel() {
         const vibeImage = settings.vibeTransfer.images[settings.vibeTransfer.selectedImageId];
         if (vibeImage) {
             const isImageActive = vibeImage.active !== false;
-            vibeName = vibeImage.name || 'Selected';
-            if (!isImageActive) {
-                vibeName = `${vibeName} (OFF)`;
+            if (isImageActive) {
+                vibeName = '1 image';
+                vibeActive = true;
+            } else {
+                vibeName = '1 image (OFF)';
             }
-            vibeActive = isImageActive;
         }
     }
     
@@ -1388,33 +1926,35 @@ function updateStatusPanel() {
     $('#status_vibe').toggleClass('inactive', !vibeActive);
     $('#status_vibe').toggleClass('paused', vibeSelected && !vibeActive);
     
-    const charEnabled = settings.characterReference.enabled && settings.characterReference.selectedCharacter;
+    // 레거시 구조 (캐릭터 > 이미지) perBot
+    const charRefEnabled = settings.characterReference.enabled;
+    const botData = getCurrentBotCharacterReferences();
     let charName = 'Not set';
     let charActive = false;
+    let hasCharRef = false;
     
-    if (charEnabled) {
-        const charData = settings.characterReference.characters[settings.characterReference.selectedCharacter];
-        if (charData) {
-            const selectedImageId = charData.selectedImageId;
-            if (selectedImageId && charData.images && charData.images[selectedImageId]) {
-                const selectedImage = charData.images[selectedImageId];
-                const isImageActive = selectedImage.active !== false;
-                charName = `${settings.characterReference.selectedCharacter}: ${selectedImage.name || 'Image'}`;
-                if (!isImageActive) {
-                    charName = `${charName} (OFF)`;
-                }
-                charActive = isImageActive;
-            } else {
-                const activeImages = Object.values(charData.images || {}).filter(img => img.active !== false);
-                charName = `${settings.characterReference.selectedCharacter} (${activeImages.length} images, none selected)`;
+    if (charRefEnabled && botData && botData.activeCharacter) {
+        const charData = botData.characters[botData.activeCharacter];
+        if (charData && charData.activeImageId) {
+            const activeImage = charData.images.find(img => img.id === charData.activeImageId);
+            if (activeImage) {
+                hasCharRef = true;
+                charName = '1 character';
+                charActive = true;
             }
+        }
+    } else if (charRefEnabled && botData && botData.characters) {
+        const charCount = Object.keys(botData.characters).length;
+        if (charCount > 0) {
+            hasCharRef = true;
+            charName = `${charCount} character(s) (none active)`;
         }
     }
     
-    $('#status_charref_value').text(charName).toggleClass('not-set', !charEnabled);
+    $('#status_charref_value').text(charName).toggleClass('not-set', !hasCharRef);
     $('#status_charref').toggleClass('active', charActive);
     $('#status_charref').toggleClass('inactive', !charActive);
-    $('#status_charref').toggleClass('paused', charEnabled && !charActive);
+    $('#status_charref').toggleClass('paused', hasCharRef && !charActive);
     
     const currentPreset = settings.presets[settings.currentPreset];
     const hasNegative = currentPreset && currentPreset.negativePrompt && currentPreset.negativePrompt.trim();
@@ -1832,10 +2372,22 @@ $(function () {
             $('#extensionsMenu')
                 .append(`<div id="auto_generation" class="list-group-item flex-container flexGap5">
                 <div class="fa-solid fa-robot"></div>
-                <span data-i18n="Image Auto Generation">Image Auto Generation</span>
+                <span data-i18n="IAGF">IAGF</span>
+            </div>
+            <div id="iagf_toggle" class="list-group-item flex-container flexGap5" title="Toggle IAGF Extension">
+                <div class="fa-solid fa-power-off"></div>
+                <span>IAGF Enable/Disable</span>
+            </div>
+            <div id="iagf_preset_gallery" class="list-group-item flex-container flexGap5" title="Preset Gallery">
+                <div class="fa-solid fa-images"></div>
+                <span>IAGF Preset Gallery</span>
             </div>`);
 
             $('#auto_generation').off('click').on('click', onExtensionButtonClick);
+            $('#iagf_toggle').off('click').on('click', onToggleExtension);
+            $('#iagf_preset_gallery').off('click').on('click', openPresetGallery);
+            updateToggleButtonUI();
+            initPresetGalleryModal();
 
             await loadSettings();
 
@@ -1903,6 +2455,227 @@ function addMessageImageButton() {
                 @keyframes iagf_pulse {
                     0%, 100% { transform: scale(1); }
                     50% { transform: scale(1.1); }
+                }
+                /* Image regeneration buttons */
+                .iagf-regen-container {
+                    position: absolute;
+                    bottom: 4px;
+                    left: 50%;
+                    transform: translateX(-50%);
+                    display: flex;
+                    justify-content: center;
+                    gap: 4px;
+                    opacity: 0;
+                    transition: opacity 0.2s ease;
+                    z-index: 10;
+                }
+                .mes_img_container:hover .iagf-regen-container,
+                .mes_img_wrapper:hover .iagf-regen-container,
+                .mes_block:hover .iagf-regen-container,
+                .iagf-regen-container:hover {
+                    opacity: 1;
+                }
+                .iagf-regen-btn {
+                    background: rgba(0, 0, 0, 0.7);
+                    border: 1px solid rgba(255, 255, 255, 0.3);
+                    color: rgba(255, 255, 255, 0.8);
+                    padding: 3px 8px;
+                    font-size: 10px;
+                    border-radius: 3px;
+                    cursor: pointer;
+                    display: flex;
+                    align-items: center;
+                    gap: 3px;
+                    transition: all 0.15s ease;
+                    white-space: nowrap;
+                }
+                .iagf-regen-btn:hover {
+                    background: rgba(0, 0, 0, 0.9);
+                    border-color: rgba(255, 255, 255, 0.5);
+                    color: rgba(255, 255, 255, 1);
+                }
+                .iagf-regen-btn:disabled {
+                    opacity: 0.4;
+                    cursor: not-allowed;
+                }
+                .iagf-regen-btn.generating {
+                    animation: iagf_pulse 0.8s infinite;
+                }
+                .iagf-regen-btn i {
+                    font-size: 9px;
+                }
+                /* Regeneration edit modal */
+                .iagf-regen-modal {
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    z-index: 10000;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                }
+                .iagf-regen-modal-overlay {
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    background: rgba(0, 0, 0, 0.7);
+                }
+                .iagf-regen-modal-content {
+                    position: relative;
+                    background: #1a1a1a;
+                    border: 1px solid #333;
+                    border-radius: 6px;
+                    width: 90%;
+                    max-width: 500px;
+                    max-height: 80vh;
+                    display: flex;
+                    flex-direction: column;
+                    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+                }
+                .iagf-regen-modal-header {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    padding: 10px 14px;
+                    border-bottom: 1px solid #333;
+                }
+                .iagf-regen-modal-header h4 {
+                    margin: 0;
+                    color: #ccc;
+                    font-size: 13px;
+                    font-weight: 500;
+                }
+                .iagf-regen-modal-close {
+                    background: none;
+                    border: none;
+                    color: #888;
+                    cursor: pointer;
+                    font-size: 14px;
+                    padding: 2px 6px;
+                }
+                .iagf-regen-modal-close:hover {
+                    color: #fff;
+                }
+                .iagf-regen-modal-body {
+                    padding: 14px;
+                    overflow-y: auto;
+                    flex: 1;
+                }
+                .iagf-regen-field {
+                    margin-bottom: 12px;
+                }
+                .iagf-regen-field label {
+                    display: block;
+                    color: #999;
+                    font-size: 11px;
+                    margin-bottom: 4px;
+                    text-transform: uppercase;
+                    letter-spacing: 0.5px;
+                }
+                .iagf-regen-field input,
+                .iagf-regen-field textarea,
+                .iagf-regen-field select {
+                    width: 100%;
+                    background: #222;
+                    border: 1px solid #444;
+                    color: #ddd;
+                    padding: 6px 8px;
+                    font-size: 12px;
+                    border-radius: 3px;
+                    box-sizing: border-box;
+                }
+                .iagf-regen-field textarea {
+                    min-height: 60px;
+                    resize: vertical;
+                    font-family: inherit;
+                }
+                .iagf-regen-field input:focus,
+                .iagf-regen-field textarea:focus,
+                .iagf-regen-field select:focus {
+                    outline: none;
+                    border-color: #666;
+                }
+                .iagf-regen-row {
+                    display: flex;
+                    gap: 10px;
+                }
+                .iagf-regen-row .iagf-regen-field {
+                    flex: 1;
+                }
+                .iagf-regen-modal-footer {
+                    display: flex;
+                    justify-content: flex-end;
+                    gap: 8px;
+                    padding: 10px 14px;
+                    border-top: 1px solid #333;
+                }
+                .iagf-regen-modal-btn {
+                    background: #333;
+                    border: 1px solid #444;
+                    color: #ccc;
+                    padding: 6px 14px;
+                    font-size: 11px;
+                    border-radius: 3px;
+                    cursor: pointer;
+                    transition: all 0.15s ease;
+                }
+                .iagf-regen-modal-btn:hover {
+                    background: #444;
+                    color: #fff;
+                }
+                .iagf-regen-modal-btn.primary {
+                    background: #444;
+                    border-color: #555;
+                }
+                .iagf-regen-modal-btn.primary:hover {
+                    background: #555;
+                }
+                .iagf-regen-modal-btn:disabled {
+                    opacity: 0.5;
+                    cursor: not-allowed;
+                }
+                /* Tag autocomplete styles */
+                .iagf-autocomplete-container {
+                    position: relative;
+                }
+                .iagf-autocomplete-list {
+                    position: absolute;
+                    top: 100%;
+                    left: 0;
+                    right: 0;
+                    max-height: 150px;
+                    overflow-y: auto;
+                    background: #1a1a1a;
+                    border: 1px solid #444;
+                    border-top: none;
+                    border-radius: 0 0 3px 3px;
+                    z-index: 10001;
+                    display: none;
+                }
+                .iagf-autocomplete-list.visible {
+                    display: block;
+                }
+                .iagf-autocomplete-item {
+                    padding: 4px 8px;
+                    font-size: 11px;
+                    color: #ccc;
+                    cursor: pointer;
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                }
+                .iagf-autocomplete-item:hover,
+                .iagf-autocomplete-item.selected {
+                    background: #333;
+                    color: #fff;
+                }
+                .iagf-autocomplete-item .tag-count {
+                    color: #666;
+                    font-size: 10px;
                 }
             </style>
         `);
@@ -2076,6 +2849,22 @@ Output format: Just the prompt keywords separated by commas, like "1girl, long h
                     message.extra.inline_image = true;
                     message.extra.image_swipes.push(result);
                     
+                    // 재생성을 위한 메타데이터 저장
+                    const sdSettings = extension_settings.sd || {};
+                    message.extra.iagf_gen_params = {
+                        prompt: extractedPrompt,
+                        finalPrompt: finalPrompt,
+                        negativePrompt: extraParams.negativePrompt || sdSettings.negative_prompt || '',
+                        width: parseInt(sdSettings.width) || 832,
+                        height: parseInt(sdSettings.height) || 1216,
+                        steps: Math.min(sdSettings.steps || 28, 50),
+                        scale: parseFloat(sdSettings.scale) || 5.0,
+                        sampler: sdSettings.sampler || 'k_euler_ancestral',
+                        scheduler: sdSettings.scheduler || 'native',
+                        seed: Math.floor(Math.random() * 2147483647),
+                        model: sdSettings.model || 'nai-diffusion-4-5-full',
+                    };
+                    
                     // UI 업데이트
                     appendMediaToMessage(message, $mes);
                     await context.saveChat();
@@ -2114,6 +2903,13 @@ Output format: Just the prompt keywords separated by commas, like "1girl, long h
             if (event_types.CHAT_CHANGED) {
                 eventSource.on(event_types.CHAT_CHANGED, () => {
                     setTimeout(resetAllButtons, 100);
+                    // 봇 변경 시 캐릭터 레퍼런스 UI 업데이트
+                    setTimeout(() => {
+                        currentBotName = getCurrentBotName();
+                        updateCharacterReferenceUI();
+                        updateCharacterPromptsUI();
+                        updateStatusPanel();
+                    }, 150);
                 });
             }
 
@@ -2336,6 +3132,22 @@ async function handleIncomingMessage() {
                             message.extra.image = imageUrl;
                             message.extra.title = prompt;
                             message.extra.inline_image = true;
+                            
+                            // 재생성을 위한 메타데이터 저장
+                            const sdSettings = extension_settings.sd || {};
+                            message.extra.iagf_gen_params = {
+                                prompt: prompt,
+                                finalPrompt: finalPrompt,
+                                negativePrompt: extraParams.negativePrompt || sdSettings.negative_prompt || '',
+                                width: parseInt(sdSettings.width) || 832,
+                                height: parseInt(sdSettings.height) || 1216,
+                                steps: Math.min(sdSettings.steps || 28, 50),
+                                scale: parseFloat(sdSettings.scale) || 5.0,
+                                sampler: sdSettings.sampler || 'k_euler_ancestral',
+                                scheduler: sdSettings.scheduler || 'native',
+                                seed: Math.floor(Math.random() * 2147483647),
+                                model: sdSettings.model || 'nai-diffusion-4-5-full',
+                            };
 
                             // 更新UI
                             appendMediaToMessage(message, messageElement);
@@ -2458,10 +3270,818 @@ async function generateImageWithNAI(prompt, options = {}) {
     return null;
 }
 
+// 재생성 모달 초기화
+function initRegenModal() {
+    if ($('#iagf_regen_modal').length) return;
+    
+    const modalHtml = `
+    <div id="iagf_regen_modal" class="iagf-regen-modal" style="display:none;">
+        <div class="iagf-regen-modal-overlay"></div>
+        <div class="iagf-regen-modal-content">
+            <div class="iagf-regen-modal-header">
+                <h4><i class="fa-solid fa-sliders"></i> Edit & Regenerate</h4>
+                <button class="iagf-regen-modal-close"><i class="fa-solid fa-times"></i></button>
+            </div>
+            <div class="iagf-regen-modal-body">
+                <div class="iagf-regen-field">
+                    <label>Prompt</label>
+                    <textarea id="iagf_regen_prompt" rows="3"></textarea>
+                </div>
+                <div class="iagf-regen-field">
+                    <label>Negative Prompt</label>
+                    <textarea id="iagf_regen_negative" rows="2"></textarea>
+                </div>
+                <div class="iagf-regen-row">
+                    <div class="iagf-regen-field">
+                        <label>Width</label>
+                        <input type="number" id="iagf_regen_width" min="64" max="2048" step="64">
+                    </div>
+                    <div class="iagf-regen-field">
+                        <label>Height</label>
+                        <input type="number" id="iagf_regen_height" min="64" max="2048" step="64">
+                    </div>
+                </div>
+                <div class="iagf-regen-row">
+                    <div class="iagf-regen-field">
+                        <label>Steps</label>
+                        <input type="number" id="iagf_regen_steps" min="1" max="50">
+                    </div>
+                    <div class="iagf-regen-field">
+                        <label>Scale (CFG)</label>
+                        <input type="number" id="iagf_regen_scale" min="1" max="30" step="0.1">
+                    </div>
+                </div>
+                <div class="iagf-regen-row">
+                    <div class="iagf-regen-field">
+                        <label>Seed (-1 = random)</label>
+                        <input type="number" id="iagf_regen_seed" min="-1">
+                    </div>
+                    <div class="iagf-regen-field">
+                        <label>Sampler</label>
+                        <select id="iagf_regen_sampler">
+                            <option value="k_euler_ancestral">Euler Ancestral</option>
+                            <option value="k_euler">Euler</option>
+                            <option value="k_dpmpp_2s_ancestral">DPM++ 2S Ancestral</option>
+                            <option value="k_dpmpp_2m_sde">DPM++ 2M SDE</option>
+                            <option value="k_dpmpp_sde">DPM++ SDE</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="iagf-regen-row">
+                    <div class="iagf-regen-field">
+                        <label>CFG Rescale</label>
+                        <input type="number" id="iagf_regen_cfg_rescale" min="0" max="1" step="0.01" value="0">
+                    </div>
+                    <div class="iagf-regen-field">
+                        <label>Variety+</label>
+                        <select id="iagf_regen_variety">
+                            <option value="false">Off</option>
+                            <option value="true">On</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div class="iagf-regen-modal-footer">
+                <button class="iagf-regen-modal-btn" id="iagf_regen_cancel">Cancel</button>
+                <button class="iagf-regen-modal-btn primary" id="iagf_regen_generate"><i class="fa-solid fa-rotate"></i> Regenerate</button>
+            </div>
+        </div>
+    </div>
+    `;
+    $('body').append(modalHtml);
+    
+    // 모달 이벤트 바인딩
+    $('#iagf_regen_modal .iagf-regen-modal-overlay, #iagf_regen_modal .iagf-regen-modal-close, #iagf_regen_cancel').on('click', closeRegenModal);
+    $('#iagf_regen_generate').on('click', executeRegeneration);
+}
+
+// 현재 편집 중인 메시지 정보 저장
+let currentRegenMesId = null;
+
+function openRegenModal(mesId, genParams) {
+    initRegenModal();
+    currentRegenMesId = mesId;
+    
+    // 필드에 값 채우기
+    $('#iagf_regen_prompt').val(genParams.prompt || '');
+    $('#iagf_regen_negative').val(genParams.negativePrompt || '');
+    $('#iagf_regen_width').val(genParams.width || 832);
+    $('#iagf_regen_height').val(genParams.height || 1216);
+    $('#iagf_regen_steps').val(genParams.steps || 28);
+    $('#iagf_regen_scale').val(genParams.scale || 5.0);
+    $('#iagf_regen_seed').val(-1); // 기본적으로 랜덤 시드
+    $('#iagf_regen_sampler').val(genParams.sampler || 'k_euler_ancestral');
+    $('#iagf_regen_cfg_rescale').val(genParams.cfgRescale ?? 0);
+    $('#iagf_regen_variety').val(genParams.variety ? 'true' : 'false');
+    
+    $('#iagf_regen_modal').fadeIn(150);
+}
+
+function closeRegenModal() {
+    $('#iagf_regen_modal').fadeOut(150);
+    currentRegenMesId = null;
+}
+
+async function executeRegeneration() {
+    if (currentRegenMesId === null) return;
+    
+    const $btn = $('#iagf_regen_generate');
+    $btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin"></i> Generating...');
+    
+    try {
+        const context = getContext();
+        const message = context.chat[currentRegenMesId];
+        
+        if (!message) {
+            toastr.error('Message not found');
+            return;
+        }
+        
+        // 모달에서 값 가져오기
+        const prompt = $('#iagf_regen_prompt').val().trim();
+        const negativePrompt = $('#iagf_regen_negative').val().trim();
+        const width = parseInt($('#iagf_regen_width').val()) || 832;
+        const height = parseInt($('#iagf_regen_height').val()) || 1216;
+        const steps = parseInt($('#iagf_regen_steps').val()) || 28;
+        const scale = parseFloat($('#iagf_regen_scale').val()) || 5.0;
+        let seed = parseInt($('#iagf_regen_seed').val());
+        const sampler = $('#iagf_regen_sampler').val() || 'k_euler_ancestral';
+        const cfgRescale = parseFloat($('#iagf_regen_cfg_rescale').val()) || 0;
+        const variety = $('#iagf_regen_variety').val() === 'true';
+        
+        if (seed < 0) {
+            seed = Math.floor(Math.random() * 2147483647);
+        }
+        
+        if (!prompt) {
+            toastr.warning('Prompt is required');
+            return;
+        }
+        
+        // 프리셋 적용
+        const finalPrompt = applyPresetToPrompt(prompt);
+        const extraParams = getNAIExtraParams(prompt);
+        extraParams.negativePrompt = negativePrompt;
+        
+        // 커스텀 파라미터로 이미지 생성
+        const result = await regenerateImageWithParams(finalPrompt, {
+            negativePrompt,
+            width,
+            height,
+            steps,
+            scale,
+            seed,
+            sampler,
+            cfgRescale,
+            variety,
+            ...extraParams
+        });
+        
+        if (result) {
+            // 메시지에 이미지 추가
+            if (!message.extra) message.extra = {};
+            if (!Array.isArray(message.extra.image_swipes)) {
+                message.extra.image_swipes = [];
+            }
+            if (message.extra.image && !message.extra.image_swipes.includes(message.extra.image)) {
+                message.extra.image_swipes.push(message.extra.image);
+            }
+            
+            message.extra.image = result;
+            message.extra.title = prompt;
+            message.extra.inline_image = true;
+            message.extra.image_swipes.push(result);
+            
+            // 메타데이터 업데이트
+            message.extra.iagf_gen_params = {
+                prompt,
+                finalPrompt,
+                negativePrompt,
+                width,
+                height,
+                steps,
+                scale,
+                seed,
+                sampler,
+                cfgRescale,
+                variety,
+                model: extension_settings.sd?.model || 'nai-diffusion-4-5-full',
+            };
+            
+            // UI 업데이트
+            const $mes = $(`.mes[mesid="${currentRegenMesId}"]`);
+            appendMediaToMessage(message, $mes);
+            
+            // 새 이미지로 swipe 이동
+            const swipeIndex = message.extra.image_swipes.length - 1;
+            navigateToImageSwipe($mes, swipeIndex);
+            
+            await context.saveChat();
+            
+            toastr.success('Image regenerated!');
+            closeRegenModal();
+        }
+    } catch (error) {
+        console.error(`[${extensionName}] Regeneration error:`, error);
+        toastr.error(`Regeneration failed: ${error.message}`);
+    } finally {
+        $btn.prop('disabled', false).html('<i class="fa-solid fa-rotate"></i> Regenerate');
+    }
+}
+
+// 시드만 변경하여 재생성
+async function regenerateWithNewSeed(mesId) {
+    const context = getContext();
+    const message = context.chat[mesId];
+    
+    if (!message || !message.extra?.iagf_gen_params) {
+        toastr.warning('No generation parameters found for this image');
+        return;
+    }
+    
+    const genParams = message.extra.iagf_gen_params;
+    const newSeed = Math.floor(Math.random() * 2147483647);
+    
+    toastr.info('Regenerating with new seed...', 'IAGF');
+    
+    try {
+        const extraParams = getNAIExtraParams(genParams.prompt);
+        extraParams.negativePrompt = genParams.negativePrompt;
+        
+        const result = await regenerateImageWithParams(genParams.finalPrompt || applyPresetToPrompt(genParams.prompt), {
+            negativePrompt: genParams.negativePrompt,
+            width: genParams.width,
+            height: genParams.height,
+            steps: genParams.steps,
+            scale: genParams.scale,
+            seed: newSeed,
+            sampler: genParams.sampler,
+            ...extraParams
+        });
+        
+        if (result) {
+            if (!message.extra) message.extra = {};
+            if (!Array.isArray(message.extra.image_swipes)) {
+                message.extra.image_swipes = [];
+            }
+            if (message.extra.image && !message.extra.image_swipes.includes(message.extra.image)) {
+                message.extra.image_swipes.push(message.extra.image);
+            }
+            
+            message.extra.image = result;
+            message.extra.image_swipes.push(result);
+            message.extra.iagf_gen_params.seed = newSeed;
+            
+            const $mes = $(`.mes[mesid="${mesId}"]`);
+            appendMediaToMessage(message, $mes);
+            
+            // 새 이미지로 swipe 이동
+            const swipeIndex = message.extra.image_swipes.length - 1;
+            navigateToImageSwipe($mes, swipeIndex);
+            
+            await context.saveChat();
+            
+            toastr.success('Image regenerated with new seed!');
+        }
+    } catch (error) {
+        console.error(`[${extensionName}] Seed regeneration error:`, error);
+        toastr.error(`Regeneration failed: ${error.message}`);
+    }
+}
+
+// 커스텀 파라미터로 이미지 생성
+async function regenerateImageWithParams(prompt, params) {
+    const sdSettings = extension_settings.sd || {};
+    const isNAI = sdSettings.source === 'novel';
+    
+    if (isNAI) {
+        // NAI 직접 호출
+        return await callNAIRegeneration(prompt, params);
+    } else {
+        // 기본 SD 명령 사용
+        const result = await SlashCommandParser.commands['sd'].callback(
+            { quiet: 'true' },
+            prompt,
+        );
+        return result;
+    }
+}
+
+async function callNAIRegeneration(prompt, params) {
+    const sdSettings = extension_settings.sd || {};
+    
+    const model = params.model || sdSettings.model || 'nai-diffusion-4-5-full';
+    const sampler = params.sampler || sdSettings.sampler || 'k_euler_ancestral';
+    const scheduler = params.scheduler || sdSettings.scheduler || 'native';
+    const steps = Math.min(params.steps || sdSettings.steps || 28, 50);
+    const scale = parseFloat(params.scale || sdSettings.scale) || 5.0;
+    const width = parseInt(params.width || sdSettings.width) || 832;
+    const height = parseInt(params.height || sdSettings.height) || 1216;
+    const seed = params.seed >= 0 ? params.seed : Math.floor(Math.random() * 2147483647);
+    const negativePrompt = params.negativePrompt || '';
+    const cfgRescale = parseFloat(params.cfgRescale) || 0;
+    const variety = params.variety === true;
+    
+    const requestBody = {
+        input: prompt,
+        model: model,
+        action: 'generate',
+        parameters: {
+            params_version: 3,
+            width: width,
+            height: height,
+            noise_schedule: scheduler,
+            controlnet_strength: 1,
+            dynamic_thresholding: false,
+            scale: scale,
+            cfg_rescale: cfgRescale,
+            sampler: sampler,
+            steps: steps,
+            seed: seed,
+            n_samples: 1,
+            ucPreset: 0,
+            negative_prompt: negativePrompt,
+            qualityToggle: true,
+            use_coords: false,
+            legacy: false,
+            legacy_v3_extend: false,
+            prefer_brownian: variety,
+            autoSmea: false,
+            v4_prompt: {
+                caption: {
+                    base_caption: prompt,
+                    char_captions: [],
+                },
+                use_coords: false,
+                use_order: true,
+            },
+            v4_negative_prompt: {
+                caption: {
+                    base_caption: negativePrompt,
+                    char_captions: [],
+                },
+                legacy_uc: false,
+            },
+        },
+    };
+    
+    // Vibe Transfer 추가
+    if (params.vibeTransfer) {
+        const vibeData = params.vibeTransfer;
+        const imageData = stripBase64Header(vibeData.image);
+        requestBody.parameters.reference_image_multiple = [imageData];
+        requestBody.parameters.reference_strength_multiple = [parseFloat(vibeData.strength) || 0.6];
+        requestBody.parameters.reference_information_extracted_multiple = [parseFloat(vibeData.infoExtracted) || 1.0];
+    }
+    
+    // Character Reference 추가
+    if (params.characterReference) {
+        const charData = params.characterReference;
+        const charRefImages = charData.images.map(img => stripBase64Header(img));
+        requestBody.parameters.director_reference_images = charRefImages;
+        requestBody.parameters.director_reference_strength_values = charRefImages.map(() => 1.0);
+        requestBody.parameters.director_reference_information_extracted = charRefImages.map(() => 1.0);
+        requestBody.parameters.director_reference_secondary_strength_values = charRefImages.map(() => 1.0 - (parseFloat(charData.fidelity) || 0.6));
+        const charRefCaption = charData.styleAware ? 'character&style' : 'character';
+        requestBody.parameters.director_reference_descriptions = charRefImages.map(() => ({
+            caption: { base_caption: charRefCaption, char_captions: [] },
+            legacy_uc: false,
+        }));
+    }
+    
+    let response;
+    let usedPlugin = false;
+    
+    try {
+        response = await fetch('/api/plugins/nai-reference-image/generate', {
+            method: 'POST',
+            headers: getRequestHeaders(),
+            body: JSON.stringify(requestBody),
+        });
+        usedPlugin = true;
+    } catch (pluginError) {
+        // 플러그인 사용 불가
+    }
+    
+    if (!usedPlugin || response.status === 404) {
+        // 폴백: 기본 NAI API
+        const fallbackBody = {
+            prompt: prompt,
+            model: model,
+            sampler: sampler,
+            scheduler: scheduler,
+            steps: steps,
+            scale: scale,
+            width: width,
+            height: height,
+            negative_prompt: negativePrompt,
+            seed: seed,
+        };
+        
+        response = await fetch('/api/novelai/generate-image', {
+            method: 'POST',
+            headers: getRequestHeaders(),
+            body: JSON.stringify(fallbackBody),
+        });
+    }
+    
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`NAI API error: ${response.status} - ${errorText}`);
+    }
+    
+    const imageData = await response.text();
+    
+    if (!imageData) {
+        throw new Error('NAI API returned empty response');
+    }
+    
+    return imageData.startsWith('data:') ? imageData : `data:image/png;base64,${imageData}`;
+}
+
+// 이미지 컨테이너에 재생성 버튼 추가
+function addRegenButtonsToImage(mesElement) {
+    const $mes = $(mesElement);
+    const mesId = $mes.attr('mesid');
+    
+    // 다양한 이미지 컨테이너 선택자 시도
+    let $imgContainer = $mes.find('.mes_img_container');
+    if (!$imgContainer.length) {
+        $imgContainer = $mes.find('.mes_block .mes_img_wrapper');
+    }
+    if (!$imgContainer.length) {
+        $imgContainer = $mes.find('.mes_block img').parent();
+    }
+    
+    // 이미지가 있는 컨테이너 찾기
+    const $img = $mes.find('.mes_img, .mes_block img[src*="data:image"], .mes_block img[src*="user_upload"]');
+    if ($img.length && !$imgContainer.length) {
+        $imgContainer = $img.closest('.mes_img_container, .mes_img_wrapper').length 
+            ? $img.closest('.mes_img_container, .mes_img_wrapper') 
+            : $img.parent();
+    }
+    
+    if (!$imgContainer.length || $imgContainer.find('.iagf-regen-container').length) {
+        return;
+    }
+    
+    const context = getContext();
+    const message = context.chat[mesId];
+    
+    // 이미지가 있는 경우에만 버튼 추가 (image 또는 media 배열 체크)
+    const hasImage = message?.extra?.image || 
+                     (message?.extra?.media && message.extra.media.length > 0) ||
+                     $img.length > 0;
+    if (!hasImage) {
+        return;
+    }
+    
+    // 컨테이너에 position relative 설정
+    if ($imgContainer.css('position') === 'static') {
+        $imgContainer.css('position', 'relative');
+    }
+    
+    const $regenContainer = $(`
+        <div class="iagf-regen-container">
+            <button class="iagf-regen-btn" data-action="reseed" data-mesid="${mesId}" title="Regenerate with new seed">
+                <i class="fa-solid fa-dice"></i> Reseed
+            </button>
+            <button class="iagf-regen-btn" data-action="edit" data-mesid="${mesId}" title="Edit parameters and regenerate">
+                <i class="fa-solid fa-pen"></i> Edit
+            </button>
+        </div>
+    `);
+    
+    $imgContainer.append($regenContainer);
+    console.log(`[${extensionName}] Regen buttons added to message ${mesId}`);
+}
+
+// 버튼 이벤트를 document 레벨에서 위임으로 처리
+$(document).off('click.iagf_regen').on('click.iagf_regen', '.iagf-regen-btn', async function(e) {
+    e.stopPropagation();
+    e.preventDefault();
+    
+    const $btn = $(this);
+    const action = $btn.data('action');
+    const mesId = $btn.data('mesid');
+    
+    if ($btn.prop('disabled')) return;
+    
+    const context = getContext();
+    const message = context.chat[mesId];
+    
+    if (action === 'reseed') {
+        $btn.prop('disabled', true).addClass('generating');
+        try {
+            await regenerateWithNewSeed(mesId);
+        } finally {
+            $btn.prop('disabled', false).removeClass('generating');
+        }
+    } else if (action === 'edit') {
+        const genParams = message?.extra?.iagf_gen_params || {
+            prompt: message?.extra?.title || '',
+            negativePrompt: '',
+            width: 832,
+            height: 1216,
+            steps: 28,
+            scale: 5.0,
+            sampler: 'k_euler_ancestral',
+        };
+        openRegenModal(mesId, genParams);
+    }
+});
+
+// 모든 메시지의 이미지에 재생성 버튼 추가
+function addRegenButtonsToAllImages() {
+    console.log(`[${extensionName}] Adding regen buttons to all images...`);
+    $('#chat > .mes[mesid]').each(function() {
+        addRegenButtonsToImage(this);
+    });
+}
+
+// 기존 이벤트에 재생성 버튼 추가 연결
+if (eventSource && event_types) {
+    if (event_types.CHAT_CHANGED) {
+        eventSource.on(event_types.CHAT_CHANGED, () => {
+            setTimeout(addRegenButtonsToAllImages, 500);
+        });
+    }
+    
+    if (event_types.MESSAGE_RECEIVED) {
+        eventSource.on(event_types.MESSAGE_RECEIVED, (mesId) => {
+            setTimeout(() => {
+                const $mes = $(`.mes[mesid="${mesId}"]`);
+                if ($mes.length) addRegenButtonsToImage($mes[0]);
+            }, 500);
+        });
+    }
+    
+    if (event_types.CHARACTER_MESSAGE_RENDERED) {
+        eventSource.on(event_types.CHARACTER_MESSAGE_RENDERED, (mesId) => {
+            setTimeout(() => {
+                const $mes = $(`.mes[mesid="${mesId}"]`);
+                if ($mes.length) addRegenButtonsToImage($mes[0]);
+            }, 500);
+        });
+    }
+    
+    // MESSAGE_UPDATED 이벤트도 추가 (이미지가 나중에 추가될 때)
+    if (event_types.MESSAGE_UPDATED) {
+        eventSource.on(event_types.MESSAGE_UPDATED, (mesId) => {
+            setTimeout(() => {
+                const $mes = $(`.mes[mesid="${mesId}"]`);
+                if ($mes.length) addRegenButtonsToImage($mes[0]);
+            }, 500);
+        });
+    }
+}
+
+// MutationObserver로 이미지 추가 감지
+const imageObserver = new MutationObserver((mutations) => {
+    mutations.forEach((mutation) => {
+        mutation.addedNodes.forEach((node) => {
+            if (node.nodeType === Node.ELEMENT_NODE) {
+                const $node = $(node);
+                // 이미지가 추가되었는지 확인
+                if ($node.hasClass('mes_img_container') || $node.find('.mes_img_container').length || 
+                    $node.is('img') || $node.find('img').length) {
+                    const $mes = $node.closest('.mes[mesid]');
+                    if ($mes.length) {
+                        setTimeout(() => addRegenButtonsToImage($mes[0]), 100);
+                    }
+                }
+            }
+        });
+    });
+});
+
+// Observer 시작
+setTimeout(() => {
+    const chatElement = document.getElementById('chat');
+    if (chatElement) {
+        imageObserver.observe(chatElement, { childList: true, subtree: true });
+        console.log(`[${extensionName}] Image observer started`);
+    }
+}, 1000);
+
+// 초기 로드 시 버튼 추가
+setTimeout(addRegenButtonsToAllImages, 1500);
+
+// 이미지 swipe 이동 함수
+function navigateToImageSwipe($mes, targetIndex) {
+    try {
+        // 메시지 요소에서 이미지 컨테이너 찾기
+        const $imgContainer = $mes.find('.mes_img_container');
+        if (!$imgContainer.length) return;
+        
+        // SillyTavern의 이미지 swipe 버튼 찾기
+        const $rightSwipe = $imgContainer.find('.mes_img_swipe_right, [data-action="swipe-right"]');
+        const $leftSwipe = $imgContainer.find('.mes_img_swipe_left, [data-action="swipe-left"]');
+        
+        // 현재 swipe 인덱스 확인 (data 속성 또는 카운터에서)
+        const $counter = $imgContainer.find('.mes_img_swipe_counter');
+        let currentIndex = 0;
+        
+        if ($counter.length) {
+            const counterText = $counter.text();
+            const match = counterText.match(/(\d+)\s*\/\s*(\d+)/);
+            if (match) {
+                currentIndex = parseInt(match[1]) - 1; // 0-based index
+            }
+        }
+        
+        // 목표 인덱스까지 오른쪽으로 이동
+        const clicksNeeded = targetIndex - currentIndex;
+        
+        if (clicksNeeded > 0 && $rightSwipe.length) {
+            // 오른쪽으로 이동해야 함
+            for (let i = 0; i < clicksNeeded; i++) {
+                setTimeout(() => $rightSwipe.trigger('click'), i * 100);
+            }
+        } else if (clicksNeeded < 0 && $leftSwipe.length) {
+            // 왼쪽으로 이동해야 함
+            for (let i = 0; i < Math.abs(clicksNeeded); i++) {
+                setTimeout(() => $leftSwipe.trigger('click'), i * 100);
+            }
+        }
+        
+        console.log(`[${extensionName}] Navigated to image swipe ${targetIndex + 1}`);
+    } catch (error) {
+        console.error(`[${extensionName}] Failed to navigate swipe:`, error);
+    }
+}
+
+// 태그 자동완성을 위한 태그 데이터 로드
+let autocompleteTagsLoaded = false;
+let autocompleteTags = [];
+
+async function loadAutocompleteTags() {
+    if (autocompleteTagsLoaded) return;
+    
+    try {
+        const response = await fetch(`${extensionFolderPath}/tags.json`);
+        if (response.ok) {
+            const text = await response.text();
+            if (text.trim()) {
+                autocompleteTags = JSON.parse(text);
+                autocompleteTagsLoaded = true;
+                console.log(`[${extensionName}] Loaded ${autocompleteTags.length} tags for autocomplete`);
+            }
+        }
+    } catch (error) {
+        console.log(`[${extensionName}] Could not load tags for autocomplete:`, error);
+    }
+}
+
+// 태그 자동완성 초기화
+function initTagAutocomplete() {
+    loadAutocompleteTags();
+    
+    // 프롬프트 입력 필드에 autocomplete 컨테이너 추가
+    $(document).on('focus', '#iagf_regen_prompt, #iagf_regen_negative', function() {
+        const $field = $(this);
+        const $parent = $field.parent();
+        
+        if (!$parent.hasClass('iagf-autocomplete-container')) {
+            $field.wrap('<div class="iagf-autocomplete-container"></div>');
+            $field.after('<div class="iagf-autocomplete-list"></div>');
+        }
+    });
+    
+    // 입력 이벤트 처리
+    $(document).on('input', '#iagf_regen_prompt, #iagf_regen_negative', function() {
+        const $input = $(this);
+        const $list = $input.siblings('.iagf-autocomplete-list');
+        
+        if (!autocompleteTags.length) {
+            $list.removeClass('visible');
+            return;
+        }
+        
+        // 현재 커서 위치에서 입력 중인 단어 찾기
+        const text = $input.val();
+        const cursorPos = this.selectionStart;
+        
+        // 마지막 쉼표 이후의 텍스트 찾기
+        const lastComma = text.lastIndexOf(',', cursorPos - 1);
+        const currentWord = text.substring(lastComma + 1, cursorPos).trim().toLowerCase();
+        
+        if (currentWord.length < 2) {
+            $list.removeClass('visible');
+            return;
+        }
+        
+        // 매칭되는 태그 찾기
+        const matches = autocompleteTags
+            .filter(tag => {
+                const label = (tag.label || tag).toLowerCase();
+                return label.includes(currentWord);
+            })
+            .slice(0, 10);
+        
+        if (matches.length === 0) {
+            $list.removeClass('visible');
+            return;
+        }
+        
+        // 자동완성 목록 표시
+        $list.empty();
+        matches.forEach((tag, index) => {
+            const label = tag.label || tag;
+            const count = tag.count || '';
+            $list.append(`
+                <div class="iagf-autocomplete-item" data-tag="${escapeHtmlAttribute(label)}" data-index="${index}">
+                    <span>${escapeHtmlAttribute(label)}</span>
+                    ${count ? `<span class="tag-count">${count}</span>` : ''}
+                </div>
+            `);
+        });
+        $list.addClass('visible');
+    });
+    
+    // 자동완성 아이템 클릭
+    $(document).on('click', '.iagf-autocomplete-item', function() {
+        const tag = $(this).data('tag');
+        const $list = $(this).parent();
+        const $input = $list.siblings('textarea');
+        
+        insertTagAtCursor($input[0], tag);
+        $list.removeClass('visible');
+    });
+    
+    // 키보드 네비게이션
+    $(document).on('keydown', '#iagf_regen_prompt, #iagf_regen_negative', function(e) {
+        const $input = $(this);
+        const $list = $input.siblings('.iagf-autocomplete-list');
+        
+        if (!$list.hasClass('visible')) return;
+        
+        const $items = $list.find('.iagf-autocomplete-item');
+        const $selected = $list.find('.iagf-autocomplete-item.selected');
+        let selectedIndex = $selected.length ? $selected.data('index') : -1;
+        
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            selectedIndex = Math.min(selectedIndex + 1, $items.length - 1);
+            $items.removeClass('selected');
+            $items.eq(selectedIndex).addClass('selected');
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            selectedIndex = Math.max(selectedIndex - 1, 0);
+            $items.removeClass('selected');
+            $items.eq(selectedIndex).addClass('selected');
+        } else if (e.key === 'Enter' || e.key === 'Tab') {
+            if ($selected.length) {
+                e.preventDefault();
+                const tag = $selected.data('tag');
+                insertTagAtCursor(this, tag);
+                $list.removeClass('visible');
+            }
+        } else if (e.key === 'Escape') {
+            $list.removeClass('visible');
+        }
+    });
+    
+    // 입력 필드 외부 클릭 시 목록 닫기
+    $(document).on('click', function(e) {
+        if (!$(e.target).closest('.iagf-autocomplete-container').length) {
+            $('.iagf-autocomplete-list').removeClass('visible');
+        }
+    });
+}
+
+// 커서 위치에 태그 삽입
+function insertTagAtCursor(input, tag) {
+    const text = input.value;
+    const cursorPos = input.selectionStart;
+    
+    // 마지막 쉼표 이후의 텍스트 찾기
+    const lastComma = text.lastIndexOf(',', cursorPos - 1);
+    const beforeWord = text.substring(0, lastComma + 1);
+    const afterCursor = text.substring(cursorPos);
+    
+    // 새 텍스트 구성
+    const needsSpace = beforeWord.length > 0 && !beforeWord.endsWith(' ');
+    const newText = beforeWord + (needsSpace ? ' ' : '') + tag + ', ' + afterCursor.trimStart();
+    
+    input.value = newText;
+    
+    // 커서 위치 조정
+    const newCursorPos = beforeWord.length + (needsSpace ? 1 : 0) + tag.length + 2;
+    input.setSelectionRange(newCursorPos, newCursorPos);
+    input.focus();
+}
+
+// 태그 자동완성 초기화 실행
+initTagAutocomplete();
+
 // 내보내기 (다른 확장에서 사용할 수 있도록)
 window.imageAutoGeneration = {
     applyPresetToPrompt,
     getNAIExtraParams,
     detectCharacterFromPrompt,
+    regenerateWithNewSeed,
+    openRegenModal,
+    navigateToImageSwipe,
 };
 

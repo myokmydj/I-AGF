@@ -202,7 +202,7 @@
                     <circle cx="12" cy="7" r="4"/>
                     <path d="M5.5 21a6.5 6.5 0 0 1 13 0"/>
                 </svg>
-                <b data-i18n="Character Reference">Character Reference</b>
+                <b data-i18n="Character Reference">Character Reference (Per Bot)</b>
                 <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
             </div>
             <div class="inline-drawer-content">
@@ -212,35 +212,53 @@
                         <input type="checkbox" id="char_reference_enabled" class="checkbox">
                     </label>
                 </div>
+                <div class="char_ref_bot_info">
+                    <span class="status_label">Current Bot:</span>
+                    <span id="current_char_ref_bot_name" class="status_value">No bot selected</span>
+                </div>
+                <p class="hint">캐릭터별로 여러 이미지를 등록할 수 있지만, 사용은 1캐릭터의 1이미지만 가능합니다.</p>
+                
+                <!-- 캐릭터 선택 -->
                 <div class="flex-container flexnowrap marginBot5">
-                    <label for="char_reference_select" class="flex1" data-i18n="Character">Character</label>
-                    <select id="char_reference_select" class="text_pole widthNatural margin0">
-                        <option value="">-- Select Character --</option>
+                    <select id="char_reference_select" class="text_pole flex1 margin0">
+                        <option value="">-- 캐릭터 선택 --</option>
                     </select>
-                    <div id="char_reference_add" class="menu_button menu_button_icon" title="Add character">
+                    <div id="char_add_btn" class="menu_button menu_button_icon" title="캐릭터 추가">
                         <i class="fa-solid fa-plus"></i>
                     </div>
-                    <div id="char_reference_delete" class="menu_button menu_button_icon" title="Delete character">
-                        <i class="fa-solid fa-trash"></i>
+                    <div id="char_delete_btn" class="menu_button menu_button_icon" title="캐릭터 삭제">
+                        <i class="fa-solid fa-xmark"></i>
                     </div>
                 </div>
-                <div class="flex-container flexnowrap marginBot5">
-                    <label for="char_ref_fidelity" class="flex1" data-i18n="Fidelity">Fidelity (캐릭터 충실도)</label>
-                    <input id="char_ref_fidelity" class="text_pole widthUnset" type="number" min="0" max="1" step="0.1" value="0.6">
+                
+                <!-- 캐릭터 설정 (선택 시 표시) -->
+                <div id="char_settings_panel" class="char_settings_panel">
+                    <div class="flex-container flexnowrap marginBot5">
+                        <div id="char_ref_activate_btn" class="menu_button menu_button_icon flex1">
+                            <i class="fa-solid fa-circle-check"></i>
+                            <span>활성화</span>
+                        </div>
+                    </div>
+                    <div class="flex-container flexnowrap marginBot5">
+                        <label for="char_ref_fidelity" class="flex1">Fidelity</label>
+                        <input id="char_ref_fidelity" class="text_pole widthUnset" type="number" min="0" max="1" step="0.1" value="0.6">
+                    </div>
+                    <div class="flex-container flexnowrap marginBot5">
+                        <label class="checkbox_label" for="char_ref_style_aware">
+                            <span>Style Aware</span>
+                            <input type="checkbox" id="char_ref_style_aware" class="checkbox">
+                        </label>
+                    </div>
                 </div>
-                <div class="flex-container flexnowrap marginBot5">
-                    <label class="checkbox_label" for="char_ref_style_aware">
-                        <span data-i18n="Style Aware">Style Aware (스타일도 참조)</span>
-                        <input type="checkbox" id="char_ref_style_aware" class="checkbox">
-                    </label>
-                </div>
+                
+                <!-- 이미지 그리드 -->
                 <div id="char_reference_images_container" class="image_grid_container">
                 </div>
                 <div class="flex-container flexnowrap marginTop5">
                     <input type="file" id="char_reference_image_upload" accept="image/*" style="display: none;">
-                    <div id="char_reference_image_add_btn" class="menu_button menu_button_icon">
+                    <div id="char_image_add_btn" class="menu_button menu_button_icon">
                         <i class="fa-solid fa-plus"></i>
-                        <span data-i18n="Add Reference Image">Add Reference Image</span>
+                        <span>이미지 추가</span>
                     </div>
                 </div>
             </div>
@@ -792,5 +810,133 @@
 
 .position_controls input[type="range"] {
     flex: 1;
+}
+
+/* Character Reference Per Bot Styles */
+.char_ref_bot_info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    margin: 8px 0;
+    border-radius: 4px;
+    background: rgba(0, 0, 0, 0.15);
+    font-size: 0.85em;
+}
+
+.char_ref_container {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-height: 400px;
+    overflow-y: auto;
+    padding: 5px 0;
+}
+
+.char_ref_item {
+    border: 1px solid var(--SmartThemeBorderColor);
+    border-radius: 8px;
+    overflow: hidden;
+    transition: all 0.2s ease;
+    margin-bottom: 5px;
+}
+
+.char_ref_item.active {
+    border-color: var(--SmartThemeBodyColor);
+}
+
+.char_ref_header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    background: var(--SmartThemeBlurTintColor);
+    border-bottom: 1px solid var(--SmartThemeBorderColor);
+}
+
+.char_ref_preview {
+    width: 50px;
+    height: 50px;
+    border-radius: 6px;
+    overflow: hidden;
+    flex-shrink: 0;
+    border: 1px solid var(--SmartThemeBorderColor);
+}
+
+.char_ref_preview img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.char_ref_info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+
+.char_ref_name {
+    padding: 4px 8px !important;
+    font-size: 0.9em !important;
+    height: auto !important;
+}
+
+.char_ref_filename {
+    font-size: 0.75em;
+    opacity: 0.6;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.char_ref_controls {
+    display: flex;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+.char_ref_activate,
+.char_ref_delete {
+    width: 28px;
+    height: 28px;
+    min-width: 28px;
+    padding: 0;
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    opacity: 0.6;
+}
+
+.char_ref_activate:hover,
+.char_ref_delete:hover {
+    opacity: 1;
+}
+
+.char_ref_activate.active {
+    opacity: 1;
+}
+
+.char_settings_panel {
+    padding: 10px;
+    background: var(--SmartThemeBlurTintColor);
+    border-radius: 6px;
+    margin-bottom: 10px;
+    border: 1px solid var(--SmartThemeBorderColor);
+}
+
+#char_ref_activate_btn {
+    justify-content: center;
+    gap: 6px;
+}
+
+#char_ref_activate_btn.active {
+    background: var(--SmartThemeBlurTintColor);
+    border: 1px solid var(--SmartThemeBodyColor);
 }
 </style>
