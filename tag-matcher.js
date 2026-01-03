@@ -329,7 +329,7 @@
     function searchTags(query, limit) {
         if (limit === undefined) limit = 10;
         
-        if (!isInitialized || !fuse) {
+        if (!isInitialized) {
             return [];
         }
 
@@ -337,8 +337,15 @@
 
         if (normalizedQuery.length < 2) return [];
 
-        var results = fuse.search(normalizedQuery, { limit: limit });
-        return results.map(function(r) { return r.item; });
+        // 앞에서부터 시작하는 태그만 필터링 (prefix match)
+        var prefixMatches = ALL_TAGS
+            .filter(function(t) { 
+                return t.label.toLowerCase().startsWith(normalizedQuery); 
+            })
+            .sort(function(a, b) { return b.count - a.count; })
+            .slice(0, limit);
+
+        return prefixMatches;
     }
 
     function toPromptString(matchResults, options) {

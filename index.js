@@ -7,7 +7,7 @@ import {
     getRequestHeaders,
 } from '../../../../script.js';
 import { appendMediaToMessage } from '../../../../script.js';
-import { regexFromString } from '../../../utils.js';
+import { regexFromString, saveBase64AsFile as stSaveBase64AsFile } from '../../../utils.js';
 import { SlashCommandParser } from '../../../slash-commands/SlashCommandParser.js';
 
 const extensionName = 'I-AGF';
@@ -3569,17 +3569,16 @@ async function executeRegeneration() {
         if (result) {
             // 메시지에 이미지 추가
             if (!message.extra) message.extra = {};
-            if (!Array.isArray(message.extra.image_swipes)) {
-                message.extra.image_swipes = [];
-            }
-            if (message.extra.image && !message.extra.image_swipes.includes(message.extra.image)) {
-                message.extra.image_swipes.push(message.extra.image);
+            
+            // 새 media API 사용
+            if (!Array.isArray(message.extra.media)) {
+                message.extra.media = [];
             }
             
-            message.extra.image = result;
+            // 새 이미지를 media 배열에 추가 (SillyTavern 형식: url, type)
+            message.extra.media.push({ url: result, type: 'image', title: prompt });
             message.extra.title = prompt;
             message.extra.inline_image = true;
-            message.extra.image_swipes.push(result);
             
             // 메타데이터 업데이트
             message.extra.iagf_gen_params = {
@@ -3597,15 +3596,15 @@ async function executeRegeneration() {
                 model: extension_settings.sd?.model || 'nai-diffusion-4-5-full',
             };
             
-            // UI 업데이트
-            const $mes = $(`.mes[mesid="${currentRegenMesId}"]`);
-            appendMediaToMessage(message, $mes);
-            
-            // 새 이미지로 swipe 이동
-            const swipeIndex = message.extra.image_swipes.length - 1;
-            navigateToImageSwipe($mes, swipeIndex);
+            // UI 업데이트 - updateMessageBlock 사용하여 완전 갱신
+            updateMessageBlock(currentRegenMesId, message, { rerenderMessage: false });
             
             await context.saveChat();
+            
+            // 새 이미지로 swipe 이동
+            const $mes = $(`.mes[mesid="${currentRegenMesId}"]`);
+            const swipeIndex = (message.extra.media?.length || 1) - 1;
+            setTimeout(() => navigateToImageSwipe($mes, swipeIndex), 300);
             
             toastr.success('Image regenerated!');
             closeRegenModal();
@@ -3650,25 +3649,29 @@ async function regenerateWithNewSeed(mesId) {
         
         if (result) {
             if (!message.extra) message.extra = {};
-            if (!Array.isArray(message.extra.image_swipes)) {
-                message.extra.image_swipes = [];
+            
+            // 새 media API 사용
+            if (!Array.isArray(message.extra.media)) {
+                message.extra.media = [];
             }
-            if (message.extra.image && !message.extra.image_swipes.includes(message.extra.image)) {
-                message.extra.image_swipes.push(message.extra.image);
+            
+            // 새 이미지를 media 배열에 추가 (SillyTavern 형식: url, type)
+            const currentTitle = message.extra.title || genParams.prompt || '';
+            message.extra.media.push({ url: result, type: 'image', title: currentTitle });
+            message.extra.inline_image = true;
+            if (message.extra.iagf_gen_params) {
+                message.extra.iagf_gen_params.seed = newSeed;
             }
             
-            message.extra.image = result;
-            message.extra.image_swipes.push(result);
-            message.extra.iagf_gen_params.seed = newSeed;
-            
-            const $mes = $(`.mes[mesid="${mesId}"]`);
-            appendMediaToMessage(message, $mes);
-            
-            // 새 이미지로 swipe 이동
-            const swipeIndex = message.extra.image_swipes.length - 1;
-            navigateToImageSwipe($mes, swipeIndex);
+            // UI 업데이트 - updateMessageBlock 사용하여 완전 갱신
+            updateMessageBlock(mesId, message, { rerenderMessage: false });
             
             await context.saveChat();
+            
+            // 새 이미지로 swipe 이동
+            const $mes = $(`.mes[mesid="${mesId}"]`);
+            const swipeIndex = (message.extra.media?.length || 1) - 1;
+            setTimeout(() => navigateToImageSwipe($mes, swipeIndex), 300);
             
             toastr.success('Image regenerated with new seed!');
         }
@@ -3821,11 +3824,37 @@ async function callNAIRegeneration(prompt, params) {
     
     const imageData = await response.text();
     
+    console.log(`[${extensionName}] NAI response length: ${imageData?.length}, starts with: ${imageData?.substring(0, 50)}`);
+    
     if (!imageData) {
         throw new Error('NAI API returned empty response');
     }
     
-    return imageData.startsWith('data:') ? imageData : `data:image/png;base64,${imageData}`;
+    // base64 이미지를 파일로 업로드하고 경로 반환
+    const base64Data = imageData.startsWith('data:') ? imageData : `data:image/png;base64,${imageData}`;
+    console.log(`[${extensionName}] base64Data starts with: ${base64Data?.substring(0, 80)}`);
+    const uploadedPath = await uploadBase64Image(base64Data);
+    return uploadedPath;
+}
+
+// base64 이미지를 서버에 업로드하고 파일 경로 반환
+async function uploadBase64Image(base64Data) {
+    try {
+        const filename = `iagf_regen_${Date.now()}`;
+        
+        // data:image/png;base64, 접두사 제거 (서버는 순수 base64만 받음)
+        const pureBase64 = base64Data.replace(/^data:image\/\w+;base64,/, '');
+        
+        // SillyTavern의 공식 saveBase64AsFile 함수 사용
+        const savedPath = await stSaveBase64AsFile(pureBase64, 'iagf_generated', filename, 'png');
+        console.log(`[${extensionName}] Image saved to: ${savedPath}`);
+        return savedPath;
+    } catch (error) {
+        console.error(`[${extensionName}] Image upload error:`, error);
+        // 업로드 실패 시 base64 데이터 그대로 반환 (폴백)
+        console.warn(`[${extensionName}] Using base64 fallback`);
+        return base64Data;
+    }
 }
 
 // 이미지 컨테이너에 재생성 버튼 추가
@@ -3857,11 +3886,10 @@ function addRegenButtonsToImage(mesElement) {
     const context = getContext();
     const message = context.chat[mesId];
     
-    // 이미지가 있는 경우에만 버튼 추가 (image 또는 media 배열 체크)
-    const hasImage = message?.extra?.image || 
-                     (message?.extra?.media && message.extra.media.length > 0) ||
-                     $img.length > 0;
-    if (!hasImage) {
+    // 이미지가 있는 경우에만 버튼 추가 (media 배열 또는 DOM에서 이미지 체크)
+    const hasMedia = message?.extra?.media && message.extra.media.length > 0;
+    const hasImage = $img.length > 0;
+    if (!hasMedia && !hasImage) {
         return;
     }
     
@@ -4100,11 +4128,11 @@ function initTagAutocomplete() {
             return;
         }
         
-        // 매칭되는 태그 찾기
+        // 매칭되는 태그 찾기 (앞에서부터 시작하는 태그만)
         const matches = autocompleteTags
             .filter(tag => {
                 const label = (tag.label || tag).toLowerCase();
-                return label.includes(currentWord);
+                return label.startsWith(currentWord);
             })
             .slice(0, 10);
         
