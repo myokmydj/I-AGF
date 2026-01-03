@@ -1780,6 +1780,18 @@ async function createSettings(settingsHtml) {
         }
     });
 
+    // Reset to Default 버튼 핸들러
+    $('#iagf_reset_settings').on('click', function () {
+        if (confirm('모든 IAGF 설정을 기본값으로 되돌리시겠습니까?\n\n⚠️ 프리셋, Vibe Transfer 이미지, Character Reference 이미지, Character Prompts 등 모든 설정이 초기화됩니다.')) {
+            // 기본값으로 완전 초기화
+            extension_settings[extensionName] = JSON.parse(JSON.stringify(defaultSettings));
+            saveSettingsDebounced();
+            updateUI();
+            updateStatusPanel();
+            toastr.success('설정이 기본값으로 초기화되었습니다');
+        }
+    });
+
     updateUI();
 }
 

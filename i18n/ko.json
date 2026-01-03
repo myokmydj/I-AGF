@@ -78,5 +78,6 @@
     "Message Action Prompt": "메시지 액션 프롬프트",
     "Message Action Prompt Hint": "메시지 액션 버튼으로 이미지 생성 시 AI에게 보내는 프롬프트입니다. {{message}} 는 메시지 내용으로 대체됩니다.",
     "Max Response Length": "최대 응답 길이",
-    "Message Max Length": "메시지 최대 길이 (0=무제한)"
+    "Message Max Length": "메시지 최대 길이 (0=무제한)",
+    "Reset to Default": "기본값으로 초기화"
 }
