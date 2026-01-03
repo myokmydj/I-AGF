@@ -5,10 +5,14 @@ import {
     event_types,
     updateMessageBlock,
     getRequestHeaders,
+    generateRaw,
+    chat,
+    substituteParams,
 } from '../../../../script.js';
 import { appendMediaToMessage } from '../../../../script.js';
 import { regexFromString, saveBase64AsFile as stSaveBase64AsFile } from '../../../utils.js';
 import { SlashCommandParser } from '../../../slash-commands/SlashCommandParser.js';
+import { executeSlashCommandsOnChatInput } from '../../../slash-commands.js';
 
 const extensionName = 'I-AGF';
 const extensionFolderPath = `/scripts/extensions/third-party/${extensionName}`;
@@ -20,9 +24,13 @@ let currentNAIStatus = {
     vibeTransfer: null,
     characterReference: null,
     preset: null,
+    auxiliaryModel: null,
 };
 
 let currentBotName = null;
+
+// Auxiliary model generation state
+let isAuxiliaryGenerating = false;
 
 const INSERT_TYPE = {
     DISABLED: 'disabled',
@@ -135,7 +143,255 @@ OUTPUT: ONLY comma-separated English Danbooru tags. NO explanations, NO formatti
         maxResponseLength: 500,
         messageMaxLength: 0,  // 0 = 무제한
     },
+    // Auxiliary Model Settings for separate image prompt generation
+    auxiliaryModel: {
+        enabled: false,
+        connectionProfileId: '',  // Connection Manager profile ID for generation
+        prompt: `You are an AI assistant that generates image prompts for Stable Diffusion/NovelAI. 
+Based on the given scene/message, generate appropriate Danbooru-style tags for image generation.
+
+[Character Reference]
+{{description}}
+
+[User Persona]
+{{persona}}
+
+[Current Scene]
+{{lastMessage}}
+
+[Instructions]
+1. Analyze the scene and identify key visual elements
+2. Generate comma-separated Danbooru tags
+3. Include: composition, character details, pose, expression, clothing, background
+4. Use proper tag syntax (underscores for multi-word tags)
+5. Order: composition → character → details → background → style
+
+OUTPUT FORMAT:
+<pic prompt="your_tags_here">
+
+Output ONLY the <pic> tag with your generated prompt inside. No explanations.`,
+    },
 };
+
+// ========== Auxiliary Model Functions ==========
+
+/**
+ * Gets available Connection Manager profiles
+ * @returns {Array} Array of connection profiles or empty array
+ */
+function getConnectionProfiles() {
+    try {
+        const context = getContext();
+        const profiles = context.extensionSettings?.connectionManager?.profiles || [];
+        return profiles;
+    } catch (error) {
+        console.error(`[${extensionName}] Error getting connection profiles:`, error);
+        return [];
+    }
+}
+
+/**
+ * Sends a request using Connection Manager
+ * @param {string} profileId - The Connection Manager profile ID
+ * @param {Array<{role: string, content: string}>} messages - Messages to send
+ * @param {number} maxTokens - Maximum tokens for response
+ * @returns {Promise<string|null>} Response content or null if failed
+ */
+async function sendConnectionManagerRequest(profileId, messages) {
+    const context = getContext();
+    
+    if (!context.ConnectionManagerRequestService) {
+        console.error(`[${extensionName}] ConnectionManagerRequestService not available`);
+        toastr.error('Connection Manager가 초기화되지 않았습니다. SillyTavern을 업데이트하세요.', 'IAGF');
+        return null;
+    }
+    
+    const profiles = getConnectionProfiles();
+    const profile = profiles.find(p => p.id === profileId);
+    
+    if (!profile) {
+        console.error(`[${extensionName}] Profile not found: ${profileId}`);
+        toastr.error(`Connection Profile "${profileId}"을(를) 찾을 수 없습니다.`, 'IAGF');
+        return null;
+    }
+    
+    if (!profile.api) {
+        toastr.error('선택한 프로필에 API가 설정되어 있지 않습니다.', 'IAGF');
+        return null;
+    }
+    
+    // Use profile's max_tokens setting
+    const maxTokens = profile.max_tokens || undefined;
+    
+    try {
+        console.log(`[${extensionName}] Sending request via Connection Manager:`, {
+            profileId: profile.id,
+            profileName: profile.name,
+            api: profile.api,
+            maxTokens: maxTokens || '(profile default)',
+            messagesCount: messages.length
+        });
+        
+        const response = await context.ConnectionManagerRequestService.sendRequest(
+            profile.id,
+            messages,
+            maxTokens,
+            {}, // custom options
+            {}  // override payload
+        );
+        
+        console.log(`[${extensionName}] Connection Manager raw response:`, response);
+        
+        // Handle various response formats
+        if (response) {
+            if (typeof response === 'string') {
+                console.log(`[${extensionName}] Response is string, length: ${response.length}`);
+                return response;
+            }
+            if (response.content) {
+                console.log(`[${extensionName}] Response has content property, length: ${response.content.length}`);
+                return response.content;
+            }
+            if (response.message) {
+                console.log(`[${extensionName}] Response has message property`);
+                return response.message;
+            }
+            // Try to stringify if it's an object
+            console.warn(`[${extensionName}] Unknown response format:`, typeof response, response);
+        }
+        
+        console.warn(`[${extensionName}] No valid response received`);
+        return null;
+    } catch (error) {
+        console.error(`[${extensionName}] Connection Manager request failed:`, error);
+        toastr.error(`보조 모델 요청 실패: ${error.message}`, 'IAGF');
+        return null;
+    }
+}
+
+/**
+ * Builds the prompt for auxiliary model to generate image tags
+ * @param {string} lastMessage - The last AI message content
+ * @returns {Array<{role: string, content: string}>} Message array for generateRaw
+ */
+function buildAuxiliaryPrompt(lastMessage) {
+    const settings = extension_settings[extensionName];
+    
+    // Get character description and persona
+    let description = '';
+    let persona = '';
+    
+    try {
+        description = substituteParams('{{description}}') || '';
+        persona = substituteParams('{{persona}}') || '';
+    } catch (e) {
+        console.warn(`[${extensionName}] Error substituting params:`, e);
+    }
+    
+    // Build the prompt with substitutions
+    let promptText = settings.auxiliaryModel.prompt || defaultSettings.auxiliaryModel.prompt;
+    promptText = promptText.replace(/\{\{description\}\}/g, description);
+    promptText = promptText.replace(/\{\{persona\}\}/g, persona);
+    promptText = promptText.replace(/\{\{lastMessage\}\}/g, lastMessage);
+    
+    const messages = [
+        {
+            role: 'user',
+            content: promptText
+        }
+    ];
+    
+    return messages;
+}
+
+/**
+ * Generates image prompt using auxiliary model (Connection Manager profile)
+ * @param {string} lastMessage - The last AI message content
+ * @returns {Promise<string|null>} Generated prompt text or null if failed
+ */
+async function generateWithAuxiliaryModel(lastMessage) {
+    const settings = extension_settings[extensionName];
+    
+    if (!settings.auxiliaryModel?.enabled) {
+        console.log(`[${extensionName}] Auxiliary model not enabled`);
+        return null;
+    }
+    
+    const profileId = settings.auxiliaryModel.connectionProfileId;
+    if (!profileId) {
+        console.warn(`[${extensionName}] No connection profile selected for auxiliary model`);
+        toastr.warning('보조 모델용 Connection Profile을 선택해주세요.', 'IAGF');
+        return null;
+    }
+    
+    if (isAuxiliaryGenerating) {
+        console.log(`[${extensionName}] Auxiliary model already generating, skipping...`);
+        return null;
+    }
+    
+    isAuxiliaryGenerating = true;
+    console.log(`[${extensionName}] Starting auxiliary model generation...`);
+    
+    try {
+        // Get profile name for status display
+        const profiles = getConnectionProfiles();
+        const profile = profiles.find(p => p.id === profileId);
+        const profileName = profile?.name || profileId;
+        
+        console.log(`[${extensionName}] Using profile: ${profileName} (${profileId})`);
+        
+        // Update status for feedback
+        currentNAIStatus.auxiliaryModel = profileName;
+        
+        // Build prompt and generate
+        const promptMessages = buildAuxiliaryPrompt(lastMessage);
+        
+        console.log(`[${extensionName}] Built prompt messages:`, promptMessages);
+        console.log(`[${extensionName}] Generating image prompt with auxiliary model (${profileName})...`);
+        toastr.info(`보조 모델(${profileName})로 이미지 프롬프트 생성 중...`, 'IAGF', { timeOut: 2000 });
+        
+        const response = await sendConnectionManagerRequest(profileId, promptMessages);
+        
+        console.log(`[${extensionName}] sendConnectionManagerRequest returned:`, response ? `string length ${response.length}` : 'null');
+        
+        if (response) {
+            console.log(`[${extensionName}] Auxiliary model response (first 500 chars):`, response.substring(0, 500));
+            return response;
+        }
+        
+        console.warn(`[${extensionName}] Auxiliary model returned null/empty response`);
+        return null;
+    } catch (error) {
+        console.error(`[${extensionName}] Error generating with auxiliary model:`, error);
+        toastr.error(`보조 모델 생성 오류: ${error.message}`, 'IAGF');
+        return null;
+    } finally {
+        isAuxiliaryGenerating = false;
+        currentNAIStatus.auxiliaryModel = null;
+    }
+}
+
+/**
+ * Extracts image prompts from auxiliary model response
+ * @param {string} response - The auxiliary model response
+ * @returns {Array<string>} Array of extracted prompts
+ */
+function extractPromptsFromAuxiliaryResponse(response) {
+    const settings = extension_settings[extensionName];
+    const regex = regexFromString(settings.promptInjection.regex);
+    
+    let matches;
+    if (regex.global) {
+        matches = [...response.matchAll(regex)];
+    } else {
+        const singleMatch = response.match(regex);
+        matches = singleMatch ? [singleMatch] : [];
+    }
+    
+    return matches.map(match => match[1]).filter(prompt => prompt && prompt.trim());
+}
+
+// ========== End Auxiliary Model Functions ==========
 
 function generateImageId() {
     return 'img_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
@@ -593,6 +849,36 @@ function onToggleExtension() {
     updateToggleButtonUI();
 }
 
+/**
+ * Populates the auxiliary connection profile dropdown
+ * @param {string} selectedId - Currently selected profile ID
+ */
+function populateAuxiliaryProfileDropdown(selectedId = '') {
+    const $dropdown = $('#auxiliary_connection_profile');
+    if (!$dropdown.length) return;
+    
+    $dropdown.empty();
+    $dropdown.append('<option value="">Select a Connection Profile</option>');
+    
+    const profiles = getConnectionProfiles();
+    
+    profiles.forEach(profile => {
+        const option = $('<option></option>')
+            .val(profile.id)
+            .text(profile.name || profile.id);
+        
+        if (profile.id === selectedId) {
+            option.prop('selected', true);
+        }
+        
+        $dropdown.append(option);
+    });
+    
+    if (profiles.length === 0) {
+        $dropdown.append('<option value="" disabled>No profiles available - Configure in Connection Manager</option>');
+    }
+}
+
 function updateUI() {
     $('#auto_generation').toggleClass(
         'selected',
@@ -621,6 +907,12 @@ function updateUI() {
         $('#prompt_injection_depth').val(
             extension_settings[extensionName].promptInjection.depth,
         );
+
+        // Auxiliary Model UI 업데이트
+        const auxSettings = extension_settings[extensionName].auxiliaryModel || defaultSettings.auxiliaryModel;
+        $('#auxiliary_model_enabled').prop('checked', auxSettings.enabled || false);
+        populateAuxiliaryProfileDropdown(auxSettings.connectionProfileId || '');
+        $('#auxiliary_model_prompt').val(auxSettings.prompt || defaultSettings.auxiliaryModel.prompt);
 
         // Message Action Prompt UI 업데이트
         $('#message_action_prompt').val(
@@ -1399,6 +1691,45 @@ async function createSettings(settingsHtml) {
         saveSettingsDebounced();
     });
 
+    // ========== Auxiliary Model Settings ==========
+    $('#auxiliary_model_enabled').on('change', function () {
+        if (!extension_settings[extensionName].auxiliaryModel) {
+            extension_settings[extensionName].auxiliaryModel = { ...defaultSettings.auxiliaryModel };
+        }
+        extension_settings[extensionName].auxiliaryModel.enabled = $(this).prop('checked');
+        
+        // 보조 모델 활성화 시 프롬프트 인젝션 비활성화 권장
+        if ($(this).prop('checked') && extension_settings[extensionName].promptInjection?.enabled) {
+            toastr.info('보조 모델 사용 시 "Enable Prompt Injection"을 비활성화하는 것을 권장합니다.', 'IAGF', { timeOut: 5000 });
+        }
+        
+        saveSettingsDebounced();
+    });
+
+    $('#auxiliary_connection_profile').on('change', function () {
+        if (!extension_settings[extensionName].auxiliaryModel) {
+            extension_settings[extensionName].auxiliaryModel = { ...defaultSettings.auxiliaryModel };
+        }
+        extension_settings[extensionName].auxiliaryModel.connectionProfileId = $(this).val();
+        saveSettingsDebounced();
+        updateStatusPanel();
+    });
+
+    $('.refresh_auxiliary_profiles').on('click', function () {
+        const auxSettings = extension_settings[extensionName].auxiliaryModel || defaultSettings.auxiliaryModel;
+        populateAuxiliaryProfileDropdown(auxSettings.connectionProfileId || '');
+        toastr.success('Connection Profile 목록이 새로고침되었습니다.', 'IAGF');
+    });
+
+    $('#auxiliary_model_prompt').on('input', function () {
+        if (!extension_settings[extensionName].auxiliaryModel) {
+            extension_settings[extensionName].auxiliaryModel = { ...defaultSettings.auxiliaryModel };
+        }
+        extension_settings[extensionName].auxiliaryModel.prompt = $(this).val();
+        saveSettingsDebounced();
+    });
+    // ========== End Auxiliary Model Settings ==========
+
     // Message Action Prompt 설정
     $('#message_action_prompt').on('input', function () {
         extension_settings[extensionName].messageActionPrompt.prompt = $(this).val();
@@ -2088,7 +2419,27 @@ function updateStatusPanel() {
     $('#status_charprompt').toggleClass('active', charPromptsActive);
     $('#status_charprompt').toggleClass('inactive', !charPromptsActive);
     
-    const anyActive = vibeActive || charActive || charPromptsActive || settings.currentPreset !== 'default';
+    // Auxiliary Model status
+    const auxiliaryEnabled = settings.auxiliaryModel?.enabled;
+    const profileId = settings.auxiliaryModel?.connectionProfileId;
+    let auxiliaryText = 'Disabled';
+    let auxiliaryActive = false;
+    
+    if (auxiliaryEnabled && profileId) {
+        // Get profile name from Connection Manager
+        const profiles = getConnectionProfiles();
+        const profile = profiles.find(p => p.id === profileId);
+        auxiliaryText = profile?.name || profileId;
+        auxiliaryActive = true;
+    } else if (auxiliaryEnabled && !profileId) {
+        auxiliaryText = 'No profile';
+    }
+    
+    $('#status_auxiliary_value').text(auxiliaryText).toggleClass('not-set', !auxiliaryEnabled || !profileId);
+    $('#status_auxiliary').toggleClass('active', auxiliaryActive);
+    $('#status_auxiliary').toggleClass('inactive', !auxiliaryActive);
+    
+    const anyActive = vibeActive || charActive || charPromptsActive || auxiliaryActive || settings.currentPreset !== 'default';
     $('#nai_status_indicator')
         .toggleClass('active', anyActive)
         .toggleClass('inactive', !anyActive);
@@ -2117,6 +2468,10 @@ function showNAIStatusFeedback(extraParams) {
     
     if (currentNAIStatus.characterPrompts) {
         statusParts.push(`👥 CharPrompts: ${currentNAIStatus.characterPrompts}`);
+    }
+    
+    if (currentNAIStatus.auxiliaryModel) {
+        statusParts.push(`🤖 Auxiliary: ${currentNAIStatus.auxiliaryModel}`);
     }
     
     if (extraParams.negativePrompt) {
@@ -3099,21 +3454,26 @@ eventSource.on(
     event_types.CHAT_COMPLETION_PROMPT_READY,
     async function (eventData) {
         try {
+            const settings = extension_settings[extensionName];
+            
             // 确保设置对象和promptInjection对象都存在
             if (
-                !extension_settings[extensionName] ||
-                !extension_settings[extensionName].promptInjection ||
-                !extension_settings[extensionName].promptInjection.enabled ||
-                extension_settings[extensionName].insertType ===
-                    INSERT_TYPE.DISABLED
+                !settings ||
+                !settings.promptInjection ||
+                !settings.promptInjection.enabled ||
+                settings.insertType === INSERT_TYPE.DISABLED
             ) {
                 return;
             }
+            
+            // 보조 모델 모드가 활성화되어 있으면 프롬프트 인젝션 건너뛰기
+            if (settings.auxiliaryModel?.enabled) {
+                console.log(`[${extensionName}] Auxiliary model enabled, skipping prompt injection`);
+                return;
+            }
 
-            const prompt =
-                extension_settings[extensionName].promptInjection.prompt;
-            const depth =
-                extension_settings[extensionName].promptInjection.depth || 0;
+            const prompt = settings.promptInjection.prompt;
+            const depth = settings.promptInjection.depth || 0;
             const role = getMesRole();
 
             console.log(
@@ -3164,20 +3524,19 @@ async function handleIncomingMessage() {
         return;
     }
 
+    const settings = extension_settings[extensionName];
+
     // 确保promptInjection对象和regex属性存在
     if (
-        !extension_settings[extensionName].promptInjection ||
-        !extension_settings[extensionName].promptInjection.regex
+        !settings.promptInjection ||
+        !settings.promptInjection.regex
     ) {
         console.error('Prompt injection settings not properly initialized');
         return;
     }
 
     // 使用正则表达式search
-    const imgTagRegex = regexFromString(
-        extension_settings[extensionName].promptInjection.regex,
-    );
-    // const testRegex = regexFromString(extension_settings[extensionName].promptInjection.regex);
+    const imgTagRegex = regexFromString(settings.promptInjection.regex);
     let matches;
     if (imgTagRegex.global) {
         matches = [...message.mes.matchAll(imgTagRegex)];
@@ -3185,150 +3544,196 @@ async function handleIncomingMessage() {
         const singleMatch = message.mes.match(imgTagRegex);
         matches = singleMatch ? [singleMatch] : [];
     }
-    console.log(imgTagRegex, matches);
+    
+    console.log(`[${extensionName}] Regex matches:`, matches.length);
+    
+    // ========== Auxiliary Model Mode ==========
+    // If no matches found and auxiliary model is enabled, generate prompts separately
+    if (matches.length === 0 && settings.auxiliaryModel?.enabled) {
+        console.log(`[${extensionName}] No image tags found, checking auxiliary model settings...`);
+        console.log(`[${extensionName}] auxiliaryModel.enabled:`, settings.auxiliaryModel.enabled);
+        console.log(`[${extensionName}] auxiliaryModel.connectionProfileId:`, settings.auxiliaryModel.connectionProfileId);
+        
+        setTimeout(async () => {
+            try {
+                console.log(`[${extensionName}] Starting auxiliary model flow...`);
+                toastr.info('Generating image prompt with auxiliary model...', 'IAGF');
+                
+                // Generate prompts using auxiliary model
+                const auxResponse = await generateWithAuxiliaryModel(message.mes);
+                
+                console.log(`[${extensionName}] generateWithAuxiliaryModel returned:`, auxResponse ? `response length ${auxResponse.length}` : 'null/undefined');
+                
+                if (!auxResponse) {
+                    console.log(`[${extensionName}] Auxiliary model returned no response`);
+                    toastr.warning('보조 모델 응답이 없습니다.', 'IAGF');
+                    return;
+                }
+                
+                console.log(`[${extensionName}] Auxiliary response preview:`, auxResponse.substring(0, 300));
+                
+                // Extract prompts from auxiliary response
+                const extractedPrompts = extractPromptsFromAuxiliaryResponse(auxResponse);
+                
+                console.log(`[${extensionName}] extractPromptsFromAuxiliaryResponse returned:`, extractedPrompts);
+                
+                if (extractedPrompts.length === 0) {
+                    console.log(`[${extensionName}] No prompts extracted from auxiliary response`);
+                    console.log(`[${extensionName}] Regex used:`, settings.promptInjection.regex);
+                    toastr.warning('보조 모델 응답에서 이미지 프롬프트를 추출하지 못했습니다. 응답 형식을 확인하세요.', 'IAGF');
+                    return;
+                }
+                
+                console.log(`[${extensionName}] Extracted ${extractedPrompts.length} prompts from auxiliary model:`, extractedPrompts);
+                toastr.info(`Generating ${extractedPrompts.length} images...`, 'IAGF');
+                
+                // Process extracted prompts
+                await processImageGeneration(message, context, extractedPrompts);
+                
+            } catch (error) {
+                console.error(`[${extensionName}] Error in auxiliary model generation:`, error);
+                toastr.error(`Auxiliary model error: ${error.message}`, 'IAGF');
+            }
+        }, 100);
+        
+        return;
+    }
+    // ========== End Auxiliary Model Mode ==========
+    
     if (matches.length > 0) {
         // 延迟执行图片生成，确保消息首先显示出来
         setTimeout(async () => {
             try {
                 toastr.info(`Generating ${matches.length} images...`);
-                const insertType = extension_settings[extensionName].insertType;
-
-                // 在当前消息中插入图片
-                // 初始化message.extra
-                if (!message.extra) {
-                    message.extra = {};
-                }
-
-                // 初始化image_swipes数组
-                if (!Array.isArray(message.extra.image_swipes)) {
-                    message.extra.image_swipes = [];
-                }
-
-                // 如果已有图片，添加到swipes
-                if (
-                    message.extra.image &&
-                    !message.extra.image_swipes.includes(message.extra.image)
-                ) {
-                    message.extra.image_swipes.push(message.extra.image);
-                }
-
-                // 获取消息元素用于稍后更新
-                const messageElement = $(
-                    `.mes[mesid="${context.chat.length - 1}"]`,
-                );
-
-                // 处理每个匹配的图片标签
-                for (const match of matches) {
-                    const prompt =
-                        typeof match?.[1] === 'string' ? match[1] : '';
-                    if (!prompt.trim()) {
-                        continue;
-                    }
-
-                    // 프리셋 적용
-                    const finalPrompt = applyPresetToPrompt(prompt);
-                    const extraParams = getNAIExtraParams(prompt);
-
-                    console.log(`[${extensionName}] Generating image:`, {
-                        originalPrompt: prompt,
-                        finalPrompt,
-                        extraParams,
-                    });
-
-                    // NAI 파라미터를 포함한 이미지 생성
-                    let result;
-                    if (insertType === INSERT_TYPE.NEW_MESSAGE) {
-                        // 새 메시지로 삽입하는 경우 기본 SD 명령 사용
-                        result = await SlashCommandParser.commands['sd'].callback(
-                            { quiet: 'false' },
-                            finalPrompt,
-                        );
-                    } else {
-                        // NAI 파라미터를 포함한 이미지 생성
-                        result = await generateImageWithSD(finalPrompt, extraParams);
-                    }
-                    // 统一插入到extra里
-                    if (insertType === INSERT_TYPE.INLINE) {
-                        let imageUrl = result;
-                        if (
-                            typeof imageUrl === 'string' &&
-                            imageUrl.trim().length > 0
-                        ) {
-                            // 添加图片到swipes数组
-                            message.extra.image_swipes.push(imageUrl);
-
-                            // 设置第一张图片为主图片，或更新为最新生成的图片
-                            message.extra.image = imageUrl;
-                            message.extra.title = prompt;
-                            message.extra.inline_image = true;
-                            
-                            // 재생성을 위한 메타데이터 저장
-                            const sdSettings = extension_settings.sd || {};
-                            message.extra.iagf_gen_params = {
-                                prompt: prompt,
-                                finalPrompt: finalPrompt,
-                                negativePrompt: extraParams.negativePrompt || sdSettings.negative_prompt || '',
-                                width: parseInt(sdSettings.width) || 832,
-                                height: parseInt(sdSettings.height) || 1216,
-                                steps: Math.min(sdSettings.steps || 28, 50),
-                                scale: parseFloat(sdSettings.scale) || 5.0,
-                                sampler: sdSettings.sampler || 'k_euler_ancestral',
-                                scheduler: sdSettings.scheduler || 'native',
-                                seed: Math.floor(Math.random() * 2147483647),
-                                model: sdSettings.model || 'nai-diffusion-4-5-full',
-                            };
-
-                            // 更新UI
-                            appendMediaToMessage(message, messageElement);
-
-                            // 保存聊天记录
-                            await context.saveChat();
-                        }
-                    } else if (insertType === INSERT_TYPE.REPLACE) {
-                        let imageUrl = result;
-                        if (
-                            typeof imageUrl === 'string' &&
-                            imageUrl.trim().length > 0
-                        ) {
-                            // Find the original image tag in the message
-                            const originalTag =
-                                typeof match?.[0] === 'string' ? match[0] : '';
-                            if (!originalTag) {
-                                continue;
-                            }
-                            // Replace it with an actual image tag
-                            const escapedUrl = escapeHtmlAttribute(imageUrl);
-                            const escapedPrompt = escapeHtmlAttribute(prompt);
-                            const newImageTag = `<img src="${escapedUrl}" title="${escapedPrompt}" alt="${escapedPrompt}">`;
-                            message.mes = message.mes.replace(
-                                originalTag,
-                                newImageTag,
-                            );
-
-                            // Update the message display using updateMessageBlock
-                            updateMessageBlock(
-                                context.chat.length - 1,
-                                message,
-                            );
-                            await eventSource.emit(
-                                event_types.MESSAGE_UPDATED,
-                                context.chat.length - 1,
-                            );
-
-                            // Save the chat
-                            await context.saveChat();
-                        }
-                    }
-                }
-                toastr.success(
-                    `${matches.length} images generated successfully`,
-                );
+                const prompts = matches.map(match => typeof match?.[1] === 'string' ? match[1] : '').filter(p => p.trim());
+                await processImageGeneration(message, context, prompts);
             } catch (error) {
-                toastr.error(`Image generation error: ${error}`);
-                console.error('Image generation error:', error);
+                console.error(`[${extensionName}] Error in image generation:`, error);
+                toastr.error(`Image generation error: ${error.message}`, 'IAGF');
             }
-        }, 0); //防阻塞UI渲染
+        }, 0);
     }
+}
+
+/**
+ * Process image generation for extracted prompts
+ * @param {Object} message - The chat message object
+ * @param {Object} context - The SillyTavern context
+ * @param {Array<string>} prompts - Array of prompts to generate images for
+ */
+async function processImageGeneration(message, context, prompts) {
+    const settings = extension_settings[extensionName];
+    const insertType = settings.insertType;
+
+    // 初始化message.extra
+    if (!message.extra) {
+        message.extra = {};
+    }
+
+    // 初始化image_swipes数组
+    if (!Array.isArray(message.extra.image_swipes)) {
+        message.extra.image_swipes = [];
+    }
+
+    // 如果已有图片，添加到swipes
+    if (
+        message.extra.image &&
+        !message.extra.image_swipes.includes(message.extra.image)
+    ) {
+        message.extra.image_swipes.push(message.extra.image);
+    }
+
+    // 获取消息元素用于稍后更新
+    const messageElement = $(
+        `.mes[mesid="${context.chat.length - 1}"]`,
+    );
+
+    // 处理每个提取的图片提示
+    for (const prompt of prompts) {
+        if (!prompt.trim()) {
+            continue;
+        }
+
+        // 프리셋 적용
+        const finalPrompt = applyPresetToPrompt(prompt);
+        const extraParams = getNAIExtraParams(prompt);
+
+        console.log(`[${extensionName}] Generating image:`, {
+            originalPrompt: prompt,
+            finalPrompt,
+            extraParams,
+        });
+
+        // NAI 파라미터를 포함한 이미지 생성
+        let result;
+        if (insertType === INSERT_TYPE.NEW_MESSAGE) {
+            // 새 메시지로 삽입하는 경우 기본 SD 명령 사용
+            result = await SlashCommandParser.commands['sd'].callback(
+                { quiet: 'false' },
+                finalPrompt,
+            );
+        } else {
+            // NAI 파라미터를 포함한 이미지 생성
+            result = await generateImageWithSD(finalPrompt, extraParams);
+        }
+        
+        // 统一插入到extra里
+        if (insertType === INSERT_TYPE.INLINE) {
+            let imageUrl = result;
+            if (
+                typeof imageUrl === 'string' &&
+                imageUrl.trim().length > 0
+            ) {
+                // 添加图片到swipes数组
+                message.extra.image_swipes.push(imageUrl);
+
+                // 设置第一张图片为主图片，或更新为最新生成的图片
+                message.extra.image = imageUrl;
+                message.extra.title = prompt;
+                message.extra.inline_image = true;
+                
+                // 재생성을 위한 메타데이터 저장
+                const sdSettings = extension_settings.sd || {};
+                message.extra.iagf_gen_params = {
+                    prompt: prompt,
+                    finalPrompt: finalPrompt,
+                    negativePrompt: extraParams.negativePrompt || sdSettings.negative_prompt || '',
+                    width: parseInt(sdSettings.width) || 832,
+                    height: parseInt(sdSettings.height) || 1216,
+                    steps: Math.min(sdSettings.steps || 28, 50),
+                    scale: parseFloat(sdSettings.scale) || 5.0,
+                    sampler: sdSettings.sampler || 'k_euler_ancestral',
+                    scheduler: sdSettings.scheduler || 'native',
+                    seed: Math.floor(Math.random() * 2147483647),
+                    model: sdSettings.model || 'nai-diffusion-4-5-full',
+                };
+
+                // 更新UI
+                appendMediaToMessage(message, messageElement);
+
+                // 保存聊天记录
+                await context.saveChat();
+            }
+        } else if (insertType === INSERT_TYPE.REPLACE) {
+            // REPLACE 모드는 보조 모델에서는 지원하지 않음 (원본 태그가 없으므로)
+            // INLINE 모드로 폴백
+            let imageUrl = result;
+            if (
+                typeof imageUrl === 'string' &&
+                imageUrl.trim().length > 0
+            ) {
+                message.extra.image_swipes.push(imageUrl);
+                message.extra.image = imageUrl;
+                message.extra.title = prompt;
+                message.extra.inline_image = true;
+                
+                appendMediaToMessage(message, messageElement);
+                await context.saveChat();
+            }
+        }
+    }
+    
+    toastr.success(`${prompts.length} images generated successfully`, 'IAGF');
 }
 
 // NAI API 직접 호출을 위한 함수 (향후 확장용)

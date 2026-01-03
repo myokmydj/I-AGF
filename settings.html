@@ -58,6 +58,15 @@
                     <span class="status_label">CharPrompt:</span>
                     <span class="status_value" id="status_charprompt_value">Not set</span>
                 </div>
+                <div class="nai_status_item" id="status_auxiliary">
+                    <svg class="status_icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+                        <line x1="8" y1="21" x2="16" y2="21"/>
+                        <line x1="12" y1="17" x2="12" y2="21"/>
+                    </svg>
+                    <span class="status_label">Auxiliary:</span>
+                    <span class="status_value" id="status_auxiliary_value">Disabled</span>
+                </div>
             </div>
         </div>
 
@@ -97,6 +106,60 @@
         <div class="flex-container flexnowrap">
             <label for="prompt_injection_depth" class="flex1" data-i18n="Depth">Depth</label>
             <input id="prompt_injection_depth" class="text_pole widthUnset" type="number" min="0" max="100">
+        </div>
+
+        <hr class="sysHR">
+
+        <div class="inline-drawer">
+            <div class="inline-drawer-toggle inline-drawer-header">
+                <svg class="section_icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                    <path d="M2 17l10 5 10-5"/>
+                    <path d="M2 12l10 5 10-5"/>
+                </svg>
+                <b data-i18n="Auxiliary Model">Auxiliary Model (Separate Generation)</b>
+                <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
+            </div>
+            <div class="inline-drawer-content">
+                <div class="hint auxiliary-setup-guide" style="background: var(--SmartThemeBotMesBlurTintColor); padding: 10px; border-radius: 5px; margin-bottom: 10px;">
+                    <p style="margin: 0 0 8px 0;"><strong>📋 Setup Guide:</strong></p>
+                    <ol style="margin: 0; padding-left: 20px; font-size: 0.9em;">
+                        <li>Create an empty preset (all prompt) in Connection Manager and connect your desired model to make a "blank profile"</li>
+                        <li>Select the blank profile below</li>
+                        <li>Turn <strong>OFF</strong> "Enable Prompt Injection" above</li>
+                        <li>Set "Image Insert Type" to <strong>Inline</strong> or <strong>Replace</strong> (NOT "Create New Message")</li>
+                    </ol>
+                    <hr style="margin: 8px 0; border: none; border-top: 1px solid var(--SmartThemeBorderColor);">
+                    <p style="margin: 0 0 8px 0;"><strong>📋 설정 가이드:</strong></p>
+                    <ol style="margin: 0; padding-left: 20px; font-size: 0.9em;">
+                        <li>Connection Manager에서 모든 프롬프트가 비어있는 프리셋을 만들고 원하는 모델을 연결하여 "깡통 프로필"을 생성하세요</li>
+                        <li>아래에서 해당 프로필을 선택하세요</li>
+                        <li>위의 "Enable Prompt Injection"을 <strong>끄세요</strong></li>
+                        <li>"Image Insert Type"을 <strong>Inline</strong> 또는 <strong>Replace</strong>로 설정하세요 ("Create New Message" 사용 금지)</li>
+                    </ol>
+                </div>
+                <div class="flex-container flexnowrap">
+                    <label class="checkbox_label" for="auxiliary_model_enabled">
+                        <span data-i18n="Enable Auxiliary Model">Enable Auxiliary Model</span>
+                        <input type="checkbox" id="auxiliary_model_enabled" class="checkbox">
+                    </label>
+                </div>
+                <div class="auxiliary-profile-container">
+                    <div class="title_restorable">
+                        <label for="auxiliary_connection_profile" data-i18n="Connection Profile">Connection Profile</label>
+                        <button class="menu_button fa-solid fa-rotate interactable refresh_auxiliary_profiles" title="Refresh profiles"></button>
+                    </div>
+                    <select id="auxiliary_connection_profile" class="text_pole" title="Select a Connection Profile for image prompt generation">
+                        <option value="">Select a Connection Profile</option>
+                    </select>
+                    <small class="hint">Connection Manager에서 이미지 프롬프트 생성용 프로필을 미리 설정하세요. 토큰 설정은 프로필의 설정을 따릅니다.</small>
+                </div>
+                <div class="">
+                    <div><label for="auxiliary_model_prompt" class="flex1" data-i18n="Auxiliary Prompt">Auxiliary Prompt Template</label></div>
+                    <textarea id="auxiliary_model_prompt" class="text_pole textarea_compact" rows="6" placeholder="Prompt template for auxiliary model..."></textarea>
+                    <small class="hint">사용 가능한 변수: {{description}}, {{persona}}, {{lastMessage}}</small>
+                </div>
+            </div>
         </div>
 
         <hr class="sysHR">
