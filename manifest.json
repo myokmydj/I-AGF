@@ -1,0 +1,13 @@
+{
+    "display_name": "IAGF",
+    "requires": [],
+    "optional": [],
+    "js": "index.js",
+    "author": "myokmydj",
+    "version": "2.5.0",
+    "homePage": "https://github.com/myokmydj/I-AGF",
+    "auto_update": false,
+    "i18n": {
+        "ko": "i18n/ko.json"
+    }
+}

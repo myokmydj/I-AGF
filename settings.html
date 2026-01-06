@@ -1,0 +1,60 @@
+<!-- IAGF Minimal Settings Panel - All settings moved to Dashboard -->
+<style>
+    #iagf_minimal_panel {
+        padding: 15px;
+        text-align: center;
+    }
+    #iagf_minimal_panel .iagf_title {
+        font-size: 1.2em;
+        font-weight: bold;
+        margin-bottom: 8px;
+        color: var(--SmartThemeBodyColor);
+    }
+    #iagf_minimal_panel .iagf_subtitle {
+        font-size: 0.85em;
+        color: var(--SmartThemeQuoteColor);
+        margin-bottom: 15px;
+    }
+    #iagf_minimal_panel .iagf_open_btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 12px 24px;
+        background: var(--SmartThemeBlurTintColor);
+        border: 1px solid var(--SmartThemeBorderColor);
+        border-radius: 6px;
+        cursor: pointer;
+        transition: all 0.2s;
+        font-size: 1em;
+    }
+    #iagf_minimal_panel .iagf_open_btn:hover {
+        background: var(--SmartThemeQuoteColor);
+        transform: translateY(-1px);
+    }
+    #iagf_minimal_panel .iagf_open_btn i {
+        font-size: 1.1em;
+    }
+    #iagf_minimal_panel .iagf_hint {
+        font-size: 0.75em;
+        color: var(--SmartThemeQuoteColor);
+        margin-top: 12px;
+        opacity: 0.7;
+    }
+</style>
+<div class="inline-drawer">
+    <div class="inline-drawer-toggle inline-drawer-header">
+        <b data-i18n="Image Auto Generation">IAGF</b>
+        <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
+    </div>
+    <div class="inline-drawer-content">
+        <div id="iagf_minimal_panel">
+            <div class="iagf_title">🎨 IAGF - Image Auto Generation</div>
+            <div class="iagf_subtitle">All settings are managed through the Dashboard</div>
+            <div id="iagf_open_dashboard" class="iagf_open_btn interactable" tabindex="0">
+                <i class="fa-solid fa-table-columns"></i>
+                <span>Open Dashboard</span>
+            </div>
+            <div class="iagf_hint">💡 Tip: You can also click "IAGF" in the Extensions menu</div>
+        </div>
+    </div>
+</div>
