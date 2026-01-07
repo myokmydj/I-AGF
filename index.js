@@ -1677,14 +1677,14 @@ eventSource.on(
             ) {
                 return;
             }
+
+            if (settings.insertType === INSERT_TYPE.DISABLED) {
+                return;
+            }
             
             if (settings.auxiliaryModel?.enabled) {
                 console.log(`[${extensionName}] Auxiliary model enabled, skipping prompt injection`);
                 return;
-            }
-
-            if (settings.insertType === INSERT_TYPE.DISABLED) {
-                settings.insertType = INSERT_TYPE.INLINE;
             }
 
             const prompt = settings.promptInjection.prompt;
