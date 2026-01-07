@@ -1,14 +1,6 @@
-/**
- * IAGF - Dashboard Modal
- * 대시보드 스타일 메인 UI
- */
-
-import { extensionName } from '../../core/constants.js';
+import { extensionName, INSERT_TYPE } from '../../core/constants.js';
 import { escapeHtmlAttribute } from '../../core/utils.js';
 
-/**
- * 대시보드 모달 관리 클래스
- */
 export class DashboardModal {
     constructor(options) {
         this.settings = options.settings;
@@ -24,17 +16,11 @@ export class DashboardModal {
         this.generatingPreviews = new Set();
     }
 
-    /**
-     * 초기화
-     */
     initialize() {
         this.injectModal();
         this.bindEvents();
     }
 
-    /**
-     * 모달 HTML 삽입
-     */
     injectModal() {
         if ($('#iagf-dashboard-modal').length) return;
 
@@ -108,9 +94,6 @@ export class DashboardModal {
         this.$modal = $('#iagf-dashboard-modal');
     }
 
-    /**
-     * 이벤트 바인딩
-     */
     bindEvents() {
         // 오버레이 클릭으로 닫기
         this.$modal.find('.iagf-dashboard-overlay').on('click', () => this.close());
@@ -133,9 +116,6 @@ export class DashboardModal {
         });
     }
 
-    /**
-     * 모달 열기
-     */
     open() {
         this.isOpen = true;
         this.$modal.fadeIn(200);
@@ -143,18 +123,12 @@ export class DashboardModal {
         $('body').addClass('iagf-modal-open');
     }
 
-    /**
-     * 모달 닫기
-     */
     close() {
         this.isOpen = false;
         this.$modal.fadeOut(200);
         $('body').removeClass('iagf-modal-open');
     }
 
-    /**
-     * 토글
-     */
     toggle() {
         if (this.isOpen) {
             this.close();
@@ -163,9 +137,6 @@ export class DashboardModal {
         }
     }
 
-    /**
-     * 페이지 이동
-     */
     navigateTo(page) {
         this.currentPage = page;
         
@@ -188,9 +159,6 @@ export class DashboardModal {
         this.renderPage(page);
     }
 
-    /**
-     * 페이지 렌더링
-     */
     renderPage(page) {
         const $content = this.$modal.find('#iagf-content');
         
@@ -227,9 +195,6 @@ export class DashboardModal {
         }
     }
 
-    /**
-     * 홈 페이지 렌더링
-     */
     renderHomePage() {
         const presetName = this.settings.presets[this.settings.currentPreset]?.name || 'Default';
         const vibeStatus = this.managers.vibeTransfer?.getStatus() || {};
@@ -322,9 +287,6 @@ export class DashboardModal {
         </div>`;
     }
 
-    /**
-     * 활성화된 기능 수 계산
-     */
     countActiveFeatures() {
         let count = 0;
         if (this.settings.currentPreset !== 'default') count++;
@@ -740,9 +702,35 @@ export class DashboardModal {
 
     renderSettingsPage() {
         const settings = this.settings;
+        const insertType = settings.insertType || INSERT_TYPE.DISABLED;
 
         return `
         <div class="iagf-settings-page">
+            <div class="iagf-section">
+                <h3>
+                    <i class="fa-solid fa-image"></i>
+                    이미지 삽입 방식
+                </h3>
+                <div class="iagf-radio-group">
+                    <label class="iagf-radio">
+                        <input type="radio" name="insert-type" value="disabled" ${insertType === INSERT_TYPE.DISABLED ? 'checked' : ''}>
+                        <span class="radio-mark"></span>
+                        <span class="radio-label">비활성화</span>
+                    </label>
+                    <label class="iagf-radio">
+                        <input type="radio" name="insert-type" value="inline" ${insertType === INSERT_TYPE.INLINE ? 'checked' : ''}>
+                        <span class="radio-mark"></span>
+                        <span class="radio-label">현재 메시지에 삽입</span>
+                    </label>
+                    <label class="iagf-radio">
+                        <input type="radio" name="insert-type" value="new" ${insertType === INSERT_TYPE.NEW_MESSAGE ? 'checked' : ''}>
+                        <span class="radio-mark"></span>
+                        <span class="radio-label">새 메시지로 생성</span>
+                    </label>
+                </div>
+                <p class="section-desc">생성된 이미지를 어디에 삽입할지 선택합니다.</p>
+            </div>
+
             <div class="iagf-section">
                 <h3>
                     <i class="fa-solid fa-syringe"></i>
@@ -790,6 +778,7 @@ export class DashboardModal {
                         </button>
                     </div>
                 </div>
+                <p class="section-desc warning">⚠️ Gemini 2.5~3 모델 사용시 종종 검열로 인해 이미지 프롬프트 생성이 실패할 수 있음. 프롬프트를 고치거나 리롤!</p>
             </div>
 
             <div class="iagf-section">
@@ -836,8 +825,10 @@ export class DashboardModal {
         $content.find('.iagf-preset-item').on('click', (e) => {
             if ($(e.target).closest('.btn-delete-preset').length) return;
             const key = $(e.currentTarget).data('preset-key');
+            const scrollTop = $content.find('.iagf-presets-sidebar').scrollTop();
             this.managers.presets?.selectPreset(key);
             this.renderPage('presets');
+            this.$modal.find('.iagf-presets-sidebar').scrollTop(scrollTop);
         });
 
         $content.find('#btn-add-preset').on('click', () => {
@@ -849,14 +840,18 @@ export class DashboardModal {
             e.stopPropagation();
             const key = $(e.currentTarget).data('preset-key');
             if (confirm('이 프리셋을 삭제하시겠습니까?')) {
+                const scrollTop = $content.find('.iagf-presets-sidebar').scrollTop();
                 this.managers.presets?.deletePreset(key);
                 this.renderPage('presets');
+                this.$modal.find('.iagf-presets-sidebar').scrollTop(scrollTop);
             }
         });
 
         $content.find('#preset-name-input').on('change', (e) => {
+            const scrollTop = $content.find('.iagf-presets-sidebar').scrollTop();
             this.managers.presets?.updatePreset(this.settings.currentPreset, { name: e.target.value });
             this.renderPage('presets');
+            this.$modal.find('.iagf-presets-sidebar').scrollTop(scrollTop);
         });
 
         $content.find('#preset-prefix').on('change', (e) => {
@@ -1137,9 +1132,20 @@ export class DashboardModal {
     bindSettingsEvents() {
         const $content = this.$modal.find('#iagf-content');
 
+        $content.find('input[name="insert-type"]').on('change', (e) => {
+            this.settings.insertType = e.target.value;
+            this.saveSettings();
+            this.onUpdate('insertType');
+        });
+
         $content.find('#settings-injection-enabled').on('change', (e) => {
             this.settings.promptInjection.enabled = e.target.checked;
+            if (e.target.checked && this.settings.insertType === INSERT_TYPE.DISABLED) {
+                this.settings.insertType = INSERT_TYPE.INLINE;
+                this.renderPage('settings');
+            }
             this.saveSettings();
+            this.onUpdate('insertType');
         });
 
         $content.find('#settings-injection-prompt').on('change', (e) => {
@@ -1213,9 +1219,6 @@ export class DashboardModal {
         });
     }
 
-    /**
-     * 상태 배지 업데이트
-     */
     updateStatusBadge(status, text) {
         const $badge = this.$modal.find('#iagf-status-badge');
         $badge.removeClass('ready generating error').addClass(status);

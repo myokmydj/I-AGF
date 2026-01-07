@@ -1682,20 +1682,21 @@ eventSource.on(
         try {
             const settings = extension_settings[extensionName];
             
-            // 确保设置对象和promptInjection对象都存在
             if (
                 !settings ||
                 !settings.promptInjection ||
-                !settings.promptInjection.enabled ||
-                settings.insertType === INSERT_TYPE.DISABLED
+                !settings.promptInjection.enabled
             ) {
                 return;
             }
             
-            // 보조 모델 모드가 활성화되어 있으면 프롬프트 인젝션 건너뛰기
             if (settings.auxiliaryModel?.enabled) {
                 console.log(`[${extensionName}] Auxiliary model enabled, skipping prompt injection`);
                 return;
+            }
+
+            if (settings.insertType === INSERT_TYPE.DISABLED) {
+                settings.insertType = INSERT_TYPE.INLINE;
             }
 
             const prompt = settings.promptInjection.prompt;
@@ -1734,25 +1735,31 @@ eventSource.on(
 // 监听消息接收事件
 eventSource.on(event_types.MESSAGE_RECEIVED, handleIncomingMessage);
 async function handleIncomingMessage() {
-    // 确保设置对象存在
-    if (
-        !extension_settings[extensionName] ||
-        extension_settings[extensionName].insertType === INSERT_TYPE.DISABLED
-    ) {
+    const settings = extension_settings[extensionName];
+    
+    if (!settings) {
         return;
+    }
+
+    const isInjectionEnabled = settings.promptInjection?.enabled;
+    const isAuxiliaryEnabled = settings.auxiliaryModel?.enabled;
+    const isInsertDisabled = settings.insertType === INSERT_TYPE.DISABLED;
+
+    if (isInsertDisabled && !isInjectionEnabled && !isAuxiliaryEnabled) {
+        return;
+    }
+
+    if (isInsertDisabled && (isInjectionEnabled || isAuxiliaryEnabled)) {
+        settings.insertType = INSERT_TYPE.INLINE;
     }
 
     const context = getContext();
     const message = context.chat[context.chat.length - 1];
 
-    // 检查是否是AI消息
     if (!message || message.is_user) {
         return;
     }
 
-    const settings = extension_settings[extensionName];
-
-    // 确保promptInjection对象和regex属性存在
     if (
         !settings.promptInjection ||
         !settings.promptInjection.regex

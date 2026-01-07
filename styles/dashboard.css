@@ -651,6 +651,14 @@ body.iagf-modal-open {
     font-size: 0.85rem;
 }
 
+.section-desc.warning {
+    color: #f59e0b;
+    background: rgba(245, 158, 11, 0.1);
+    padding: 8px 12px;
+    border-radius: 6px;
+    border-left: 3px solid #f59e0b;
+}
+
 .option-desc {
     margin: 4px 0 16px 50px;
     color: #666;
@@ -674,11 +682,18 @@ body.iagf-modal-open {
 }
 
 /* 프리셋 페이지 */
+.iagf-presets-page {
+    height: 100%;
+    overflow: hidden;
+}
+
 .iagf-presets-layout {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 20px;
-    height: calc(100% - 20px);
+    height: 100%;
+    max-height: 100%;
+    overflow: hidden;
 }
 
 .iagf-presets-sidebar {
@@ -687,6 +702,7 @@ body.iagf-modal-open {
     border-radius: 12px;
     padding: 16px;
     overflow-y: auto;
+    max-height: 100%;
 }
 
 .presets-header {
@@ -835,7 +851,8 @@ body.iagf-modal-open {
     border: 1px solid #2a2a2a;
     border-radius: 12px;
     padding: 20px;
-    overflow-y: auto;
+    overflow: hidden;
+    max-height: 100%;
 }
 
 .editor-header {
@@ -1284,4 +1301,60 @@ body.iagf-modal-open {
     flex-direction: column;
     gap: 12px;
     margin-bottom: 16px;
+}
+
+.iagf-radio-group {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.iagf-radio {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    background: #202020;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.iagf-radio:hover {
+    background: #252525;
+}
+
+.iagf-radio input[type="radio"] {
+    display: none;
+}
+
+.iagf-radio .radio-mark {
+    width: 18px;
+    height: 18px;
+    border: 2px solid #555;
+    border-radius: 50%;
+    position: relative;
+    transition: all 0.2s;
+}
+
+.iagf-radio input[type="radio"]:checked + .radio-mark {
+    border-color: #888;
+}
+
+.iagf-radio input[type="radio"]:checked + .radio-mark::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 8px;
+    height: 8px;
+    background: #888;
+    border-radius: 50%;
+}
+
+.iagf-radio .radio-label {
+    color: #c0c0c0;
+    font-size: 0.95rem;
 }
