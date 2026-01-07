@@ -1734,7 +1734,7 @@ eventSource.on(
 
 // 监听消息接收事件
 eventSource.on(event_types.MESSAGE_RECEIVED, handleIncomingMessage);
-async function handleIncomingMessage() {
+async function handleIncomingMessage(mesId) {
     const settings = extension_settings[extensionName];
     
     if (!settings) {
@@ -1760,6 +1760,15 @@ async function handleIncomingMessage() {
         return;
     }
 
+    if (message.extra?.iagf_processed) {
+        return;
+    }
+
+    const hasExistingMedia = message.extra?.media && message.extra.media.length > 0;
+    if (hasExistingMedia) {
+        return;
+    }
+
     if (
         !settings.promptInjection ||
         !settings.promptInjection.regex
@@ -1768,7 +1777,9 @@ async function handleIncomingMessage() {
         return;
     }
 
-    // 使用正则表达式search
+    message.extra = message.extra || {};
+    message.extra.iagf_processed = true;
+
     const imgTagRegex = regexFromString(settings.promptInjection.regex);
     let matches;
     if (imgTagRegex.global) {
