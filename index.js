@@ -45,18 +45,6 @@ import {
     closeRegenModal as closeRegenModalModule,
 } from './src/ui/index.js';
 
-// ============ 모듈화된 컴포넌트 (점진적 마이그레이션) ============
-// 아래 모듈들은 새 대시보드 UI에서 사용됩니다.
-// 기존 함수들은 호환성을 위해 유지하며, 점진적으로 모듈 버전으로 교체 예정
-
-/* 
- * 모듈 구조:
- * - src/core/: 상수, 유틸리티, 설정 관리
- * - src/features/: 기능별 매니저 클래스
- * - src/api/: NAI API 통신
- * - src/ui/: UI 컴포넌트 및 대시보드
- * - styles/: CSS 스타일시트
- */
 
 let TagMatcher = null;
 let tagMatcherReady = false;
@@ -975,11 +963,23 @@ async function generateImageWithSD(prompt, extraParams = {}) {
     if (isNAI && (extraParams.vibeTransfer || extraParams.characterReference || extraParams.characterPrompts?.length > 0)) {
         return await generateImageWithNAIParams(prompt, extraParams, sdSettings);
     } else {
-        const result = await SlashCommandParser.commands['sd'].callback(
-            { quiet: 'true' },
-            prompt,
-        );
-        return result;
+        const originalNegPrompt = sdSettings.negative_prompt;
+        
+        if (extraParams.negativePrompt) {
+            extension_settings.sd.negative_prompt = extraParams.negativePrompt;
+        }
+        
+        try {
+            const result = await SlashCommandParser.commands['sd'].callback(
+                { quiet: 'true' },
+                prompt,
+            );
+            return result;
+        } finally {
+            if (originalNegPrompt !== undefined) {
+                extension_settings.sd.negative_prompt = originalNegPrompt;
+            }
+        }
     }
 }
 
@@ -1690,13 +1690,13 @@ eventSource.on(
             ) {
                 return;
             }
+
+            if (settings.insertType === INSERT_TYPE.DISABLED) {
+                return;
+            }
             
             if (settings.auxiliaryModel?.enabled) {
                 console.log(`[${extensionName}] Auxiliary model enabled, skipping prompt injection`);
-                return;
-            }
-
-            if (settings.insertType === INSERT_TYPE.DISABLED) {
                 return;
             }
 
@@ -1895,11 +1895,23 @@ async function processImageGeneration(message, context, prompts) {
         // NAI 파라미터를 포함한 이미지 생성
         let result;
         if (insertType === INSERT_TYPE.NEW_MESSAGE) {
-            // 새 메시지로 삽입하는 경우 기본 SD 명령 사용
-            result = await SlashCommandParser.commands['sd'].callback(
-                { quiet: 'false' },
-                finalPrompt,
-            );
+            const sdSettings = extension_settings.sd || {};
+            const originalNegPrompt = sdSettings.negative_prompt;
+            
+            if (extraParams.negativePrompt) {
+                extension_settings.sd.negative_prompt = extraParams.negativePrompt;
+            }
+            
+            try {
+                result = await SlashCommandParser.commands['sd'].callback(
+                    { quiet: 'false' },
+                    finalPrompt,
+                );
+            } finally {
+                if (originalNegPrompt !== undefined) {
+                    extension_settings.sd.negative_prompt = originalNegPrompt;
+                }
+            }
         } else {
             // NAI 파라미터를 포함한 이미지 생성
             result = await generateImageWithSD(finalPrompt, extraParams);
