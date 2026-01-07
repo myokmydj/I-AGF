@@ -45,18 +45,6 @@ import {
     closeRegenModal as closeRegenModalModule,
 } from './src/ui/index.js';
 
-// ============ 모듈화된 컴포넌트 (점진적 마이그레이션) ============
-// 아래 모듈들은 새 대시보드 UI에서 사용됩니다.
-// 기존 함수들은 호환성을 위해 유지하며, 점진적으로 모듈 버전으로 교체 예정
-
-/* 
- * 모듈 구조:
- * - src/core/: 상수, 유틸리티, 설정 관리
- * - src/features/: 기능별 매니저 클래스
- * - src/api/: NAI API 통신
- * - src/ui/: UI 컴포넌트 및 대시보드
- * - styles/: CSS 스타일시트
- */
 
 let TagMatcher = null;
 let tagMatcherReady = false;
