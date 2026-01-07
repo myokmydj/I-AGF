@@ -726,8 +726,9 @@ async function createSettings(settingsHtml) {
 
     $('#image_auto_generation_container').empty().append(settingsHtml);
 
-    // Dashboard 버튼 핸들러 - 이제 유일한 설정 패널 기능
-    $('#iagf_open_dashboard').on('click', function () {
+    $('#iagf_open_dashboard').on('click touchend', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
         openDashboard();
     });
 }
@@ -1696,7 +1697,7 @@ eventSource.on(
             }
 
             if (settings.insertType === INSERT_TYPE.DISABLED) {
-                settings.insertType = INSERT_TYPE.INLINE;
+                return;
             }
 
             const prompt = settings.promptInjection.prompt;
@@ -1741,16 +1742,8 @@ async function handleIncomingMessage(mesId) {
         return;
     }
 
-    const isInjectionEnabled = settings.promptInjection?.enabled;
-    const isAuxiliaryEnabled = settings.auxiliaryModel?.enabled;
-    const isInsertDisabled = settings.insertType === INSERT_TYPE.DISABLED;
-
-    if (isInsertDisabled && !isInjectionEnabled && !isAuxiliaryEnabled) {
+    if (settings.insertType === INSERT_TYPE.DISABLED) {
         return;
-    }
-
-    if (isInsertDisabled && (isInjectionEnabled || isAuxiliaryEnabled)) {
-        settings.insertType = INSERT_TYPE.INLINE;
     }
 
     const context = getContext();
@@ -2755,6 +2748,10 @@ function initializeDashboard() {
 }
 
 function openDashboard() {
+    if (!iagfManagers.dashboard) {
+        initializeDashboard();
+    }
+
     if (iagfManagers.dashboard) {
         iagfManagers.dashboard.open();
     }

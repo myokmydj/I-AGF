@@ -96,35 +96,46 @@
 /* Regeneration Edit Modal */
 .iagf-regen-modal {
     position: fixed;
-    top: 0;
-    left: 0;
+    inset: 0;
     width: 100%;
     height: 100%;
+    padding: 16px;
+    box-sizing: border-box;
     z-index: 10000;
     display: flex;
     align-items: center;
     justify-content: center;
 }
 
+@supports (padding: env(safe-area-inset-top)) {
+    .iagf-regen-modal {
+        padding-top: calc(16px + env(safe-area-inset-top, 0px));
+        padding-right: calc(16px + env(safe-area-inset-right, 0px));
+        padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+        padding-left: calc(16px + env(safe-area-inset-left, 0px));
+    }
+}
+
 .iagf-regen-modal-overlay {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
+    position: fixed;
+    inset: 0;
     background: rgba(0, 0, 0, 0.7);
+    z-index: 0;
 }
 
 .iagf-regen-modal-content {
     position: relative;
+    z-index: 1;
     background: #1a1a1a;
     border: 1px solid #333;
     border-radius: 6px;
-    width: 90%;
+    width: 100%;
     max-width: 500px;
-    max-height: 80vh;
+    max-height: 100%;
     display: flex;
     flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
 }
 
@@ -159,6 +170,7 @@
 .iagf-regen-modal-body {
     padding: 14px;
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
     flex: 1;
 }
 

@@ -1140,12 +1140,7 @@ export class DashboardModal {
 
         $content.find('#settings-injection-enabled').on('change', (e) => {
             this.settings.promptInjection.enabled = e.target.checked;
-            if (e.target.checked && this.settings.insertType === INSERT_TYPE.DISABLED) {
-                this.settings.insertType = INSERT_TYPE.INLINE;
-                this.renderPage('settings');
-            }
             this.saveSettings();
-            this.onUpdate('insertType');
         });
 
         $content.find('#settings-injection-prompt').on('change', (e) => {

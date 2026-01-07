@@ -18,6 +18,7 @@
     #iagf_minimal_panel .iagf_open_btn {
         display: inline-flex;
         align-items: center;
+        justify-content: center;
         gap: 8px;
         padding: 12px 24px;
         background: var(--SmartThemeBlurTintColor);
@@ -26,10 +27,18 @@
         cursor: pointer;
         transition: all 0.2s;
         font-size: 1em;
+        -webkit-tap-highlight-color: transparent;
+        touch-action: manipulation;
+        min-height: 44px;
     }
-    #iagf_minimal_panel .iagf_open_btn:hover {
+    #iagf_minimal_panel .iagf_open_btn:hover,
+    #iagf_minimal_panel .iagf_open_btn:active {
         background: var(--SmartThemeQuoteColor);
-        transform: translateY(-1px);
+    }
+    @media (hover: hover) {
+        #iagf_minimal_panel .iagf_open_btn:hover {
+            transform: translateY(-1px);
+        }
     }
     #iagf_minimal_panel .iagf_open_btn i {
         font-size: 1.1em;
@@ -50,7 +59,7 @@
         <div id="iagf_minimal_panel">
             <div class="iagf_title">🎨 IAGF - Image Auto Generation</div>
             <div class="iagf_subtitle">All settings are managed through the Dashboard</div>
-            <div id="iagf_open_dashboard" class="iagf_open_btn interactable" tabindex="0">
+            <div id="iagf_open_dashboard" class="iagf_open_btn interactable" tabindex="0" role="button">
                 <i class="fa-solid fa-table-columns"></i>
                 <span>Open Dashboard</span>
             </div>

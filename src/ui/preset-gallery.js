@@ -30,33 +30,32 @@ export function initPresetGalleryModal() {
     <style>
         .iagf-modal {
             position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
+            inset: 0;
             z-index: 9999;
             display: flex;
             align-items: center;
             justify-content: center;
+            padding-top: max(16px, env(safe-area-inset-top));
+            padding-right: max(16px, env(safe-area-inset-right));
+            padding-bottom: max(16px, env(safe-area-inset-bottom));
+            padding-left: max(16px, env(safe-area-inset-left));
+            box-sizing: border-box;
         }
         .iagf-modal-overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
+            position: fixed;
+            inset: 0;
             background: rgba(0, 0, 0, 0.7);
         }
         .iagf-modal-content {
             position: relative;
             background: var(--SmartThemeBlurTintColor, #1a1a1a);
             border-radius: 10px;
-            max-width: 800px;
-            width: 90%;
-            max-height: 80vh;
+            width: min(800px, 100%);
+            max-height: 100%;
             display: flex;
             flex-direction: column;
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            overflow: hidden;
         }
         .iagf-modal-header {
             display: flex;
@@ -171,6 +170,12 @@ export function initPresetGalleryModal() {
         @keyframes pulse {
             0%, 100% { opacity: 1; }
             50% { opacity: 0.5; }
+        }
+
+        @supports (height: 100dvh) {
+            .iagf-modal {
+                height: 100dvh;
+            }
         }
     </style>
     `;

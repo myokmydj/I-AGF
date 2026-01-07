@@ -25,20 +25,21 @@
 /* 모달 기본 */
 .iagf-dashboard {
     position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
+    inset: 0;
     z-index: 10000;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding-top: max(16px, env(safe-area-inset-top));
+    padding-right: max(16px, env(safe-area-inset-right));
+    padding-bottom: max(16px, env(safe-area-inset-bottom));
+    padding-left: max(16px, env(safe-area-inset-left));
 }
 
 .iagf-dashboard-overlay {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
+    position: fixed;
+    inset: 0;
     background: rgba(0, 0, 0, 0.8);
     backdrop-filter: blur(4px);
 }
@@ -46,15 +47,18 @@
 .iagf-dashboard-container {
     position: relative;
     display: flex;
-    width: 90%;
-    max-width: 1200px;
-    height: 85%;
-    max-height: 800px;
-    margin: 5% auto;
+    width: min(1200px, 100%);
+    height: min(800px, calc(100vh - 32px));
     background: #1a1a1a;
     border-radius: 12px;
     overflow: hidden;
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+@supports (height: 100dvh) {
+    .iagf-dashboard-container {
+        height: min(800px, calc(100dvh - 32px));
+    }
 }
 
 body.iagf-modal-open {
@@ -388,10 +392,15 @@ body.iagf-modal-open {
 /* 반응형 */
 @media (max-width: 768px) {
     .iagf-dashboard-container {
-        width: 95%;
-        height: 90%;
-        margin: 2.5% auto;
+        width: 100%;
+        height: calc(100vh - 32px);
         flex-direction: column;
+    }
+
+    @supports (height: 100dvh) {
+        .iagf-dashboard-container {
+            height: calc(100dvh - 32px);
+        }
     }
 
     .iagf-sidebar {
