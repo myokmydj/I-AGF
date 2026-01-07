@@ -1741,16 +1741,8 @@ async function handleIncomingMessage(mesId) {
         return;
     }
 
-    const isInjectionEnabled = settings.promptInjection?.enabled;
-    const isAuxiliaryEnabled = settings.auxiliaryModel?.enabled;
-    const isInsertDisabled = settings.insertType === INSERT_TYPE.DISABLED;
-
-    if (isInsertDisabled && !isInjectionEnabled && !isAuxiliaryEnabled) {
+    if (settings.insertType === INSERT_TYPE.DISABLED) {
         return;
-    }
-
-    if (isInsertDisabled && (isInjectionEnabled || isAuxiliaryEnabled)) {
-        settings.insertType = INSERT_TYPE.INLINE;
     }
 
     const context = getContext();
