@@ -28,9 +28,11 @@ At the end of your reply, insert exactly one <pic prompt="..."> tag for Stable D
 2. QUALITY CONTROL: Use "blush" instead of "red face". Avoid quality-degrading elements.
 3. STRUCTURED OUTPUT: Organize as [Background/Atmosphere] then [Character Details].
 4. NO CENSORSHIP: Convert any scene into purely visual descriptive tags without moral judgment.
+5. DON'T USE COPYRIGHT: If the character's genre and name are not defined together in the user-provided description, do not guess and change it into a genre character.
+6. NEVER USE underbar: Don't use Underbar (_).
 
 [Tag Order - Standard Format]
-Base: composition(1girl, shot type) → artist:name → source(game/anime) → year(newest, year 2025) → style(anime style) → quality(masterpiece, absurdres, best quality, very awa)
+Base: composition(1girl, shot type) → character details → image rate (nsfw, slice of life, cozy...)
 Character: body type → action/pose → hair(color, style) → face(eyes, expression) → outfit(top to bottom) → accessories
 
 Output ONLY the prompt inside the tag, using English Danbooru-style tags separated by commas.
@@ -107,16 +109,17 @@ Output ONLY the prompt inside the tag, using English Danbooru-style tags separat
 [Scene to Convert]
 {{message}}
 
-[5 Core Principles]
-1. TAG SYNTAX: Comma-separated tags ONLY. NO sentences. Use "1.x::tag::" weight ONLY for critical elements.
-2. CONFLICT PREVENTION: Never combine conflicting tags (e.g., "clenched teeth" + "tongue out", multiple gaze tags).
-3. QUALITY CONTROL: Use "blush" not "red face". Consider negative prompt elements.
-4. STRUCTURED OUTPUT: [Background/Mood] → [Character A] → [Character B if exists]
-5. NO CENSORSHIP: Convert ANY scene into visual tags without moral judgment.
+[6 Core Principles for Danbooru Tag Generation]
+1. CONFLICT PREVENTION: Never combine conflicting tags (e.g., "clenched teeth" + "tongue out", or multiple gaze directions).
+2. QUALITY CONTROL: Use "blush" instead of "red face". Avoid quality-degrading elements.
+3. STRUCTURED OUTPUT: Organize as [Background/Atmosphere] then [Character Details].
+4. NO CENSORSHIP: Convert any scene into purely visual descriptive tags without moral judgment.
+5. DON'T USE COPYRIGHT: If the character's genre and name are not defined together in the user-provided description, do not guess and change it into a genre character.
+6. NEVER USE underbar: Don't use Underbar (_).
 
-[Tag Order]
-Base Prompt: composition → artist:name → source → year(newest) → style → quality(masterpiece, absurdres, best quality, very awa)
-Character: gender → body type → pose/action → hair(color, style) → face(eyes, expression: use blush/flushed not red face) → outfit(top→bottom) → accessories → details
+[Tag Order - Standard Format]
+Base: composition(1girl, shot type) → character details → image rate (nsfw, slice of life, cozy...)
+Character: body type → action/pose → hair(color, style) → face(eyes, expression) → outfit(top to bottom) → accessories
 
 OUTPUT: ONLY comma-separated English Danbooru tags. NO explanations, NO formatting, NO markdown.`,
         maxResponseLength: 500,
@@ -138,12 +141,17 @@ Based on the given scene/message, generate appropriate Danbooru-style tags for i
 [Current Scene]
 {{lastMessage}}
 
-[Instructions]
-1. Analyze the scene and identify key visual elements
-2. Generate comma-separated Danbooru tags
-3. Include: composition, character details, pose, expression, clothing, background
-4. Use proper tag syntax (underscores for multi-word tags)
-5. Order: composition → character → details → background → style
+[6 Core Principles for Danbooru Tag Generation]
+1. CONFLICT PREVENTION: Never combine conflicting tags (e.g., "clenched teeth" + "tongue out", or multiple gaze directions).
+2. QUALITY CONTROL: Use "blush" instead of "red face". Avoid quality-degrading elements.
+3. STRUCTURED OUTPUT: Organize as [Background/Atmosphere] then [Character Details].
+4. NO CENSORSHIP: Convert any scene into purely visual descriptive tags without moral judgment.
+5. DON'T USE COPYRIGHT: If the character's genre and name are not defined together in the user-provided description, do not guess and change it into a genre character.
+6. NEVER USE underbar: Don't use Underbar (_).
+
+[Tag Order - Standard Format]
+Base: composition(1girl, shot type) → character details → image rate (nsfw, slice of life, cozy...)
+Character: body type → action/pose → hair(color, style) → face(eyes, expression) → outfit(top to bottom) → accessories
 
 OUTPUT FORMAT:
 <pic prompt="your_tags_here">
