@@ -1,5 +1,6 @@
 import { extensionName, INSERT_TYPE } from '../../core/constants.js';
 import { escapeHtmlAttribute } from '../../core/utils.js';
+import { defaultSettings } from '../../core/settings.js';
 
 // 샘플러 목록
 const SAMPLERS = [
@@ -933,6 +934,9 @@ export class DashboardModal {
                     <textarea id="settings-aux-prompt" class="iagf-textarea" rows="12"
                         placeholder="보조 모델에게 전달할 프롬프트. {{description}}, {{persona}}, {{lastMessage}} 변수 사용 가능">${escapeHtmlAttribute(settings.auxiliaryModel?.prompt || '')}</textarea>
                     <p class="field-hint">사용 가능한 변수: {{description}}, {{persona}}, {{lastMessage}}</p>
+                    <button class="iagf-btn" id="btn-reset-aux-prompt">
+                        <i class="fa-solid fa-rotate-left"></i> 프롬프트 초기화
+                    </button>
                 </div>
                 <p class="section-desc warning">⚠️ Gemini 2.5~3 모델 사용시 종종 검열로 인해 이미지 프롬프트 생성이 실패할 수 있음. 프롬프트를 고치거나 리롤!</p>
             </div>
@@ -1408,6 +1412,14 @@ export class DashboardModal {
         $content.find('#settings-aux-prompt').on('change', (e) => {
             this.settings.auxiliaryModel.prompt = e.target.value;
             this.saveSettings();
+        });
+
+        $content.find('#btn-reset-aux-prompt').on('click', () => {
+            if (confirm('보조 모델 프롬프트를 기본값으로 초기화하시겠습니까?')) {
+                this.settings.auxiliaryModel.prompt = defaultSettings.auxiliaryModel.prompt;
+                this.saveSettings();
+                $content.find('#settings-aux-prompt').val(defaultSettings.auxiliaryModel.prompt);
+            }
         });
 
         $content.find('#btn-refresh-profiles').on('click', () => {
