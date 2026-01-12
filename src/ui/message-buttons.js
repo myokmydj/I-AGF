@@ -4,7 +4,55 @@
  */
 
 import { extensionName } from '../core/constants.js';
-import { escapeHtmlAttribute } from '../core/utils.js';
+
+// Astra 테마 버튼 셀렉터
+const IAGF_SELECTORS = {
+    generateBtn: '.iagf_img_btn',
+    astraBridgeBtn: '[data-iagf-astra-bridge-action="generate"]',
+};
+
+/**
+ * Astra 테마의 버튼 호스트 찾기
+ * magic-translation-bridge와 동일한 위치에 버튼 추가
+ */
+function resolveAstraButtonHost(messageEl) {
+    if (!messageEl) return null;
+    // .astra-messageActions__leftDefault 안에 버튼들이 직접 추가됨
+    return messageEl.querySelector('.astra-messageActions__leftDefault') || null;
+}
+
+/**
+ * Astra 스타일 버튼 생성
+ */
+function createAstraButton({ id, title, iconClasses, onClick }) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.setAttribute('data-iagf-astra-bridge', 'true');
+    button.setAttribute('data-iagf-astra-bridge-action', id);
+    button.setAttribute('aria-label', title);
+    button.setAttribute('title', title);
+    button.className = 'astra-messageActions__iconButton--compact';
+
+    if (iconClasses) {
+        const icon = document.createElement('i');
+        icon.className = iconClasses;
+        button.appendChild(icon);
+    } else {
+        button.textContent = id.toUpperCase();
+    }
+
+    button.addEventListener(
+        'click',
+        event => {
+            event.preventDefault();
+            event.stopPropagation();
+            onClick(event);
+        },
+        true,
+    );
+
+    return button;
+}
 
 /**
  * 메시지 버튼 관리 클래스
@@ -17,6 +65,8 @@ export class MessageButtonsManager {
         this.applyPreset = options.applyPreset;
         this.getExtraParams = options.getExtraParams;
         this.initialized = false;
+        this.astraObserver = null;
+        this.astraScanPending = null;
     }
 
     /**
@@ -28,9 +78,12 @@ export class MessageButtonsManager {
 
         this.bindEvents(eventSource, event_types);
         this.injectStyles();
-        
+
         // 초기 버튼 추가
         setTimeout(() => this.resetAllButtons(), 500);
+
+        // Astra 테마용 MutationObserver 시작
+        this.startAstraObserver();
     }
 
     /**
@@ -84,6 +137,18 @@ export class MessageButtonsManager {
      */
     addButtonToMessage(mesElement) {
         const $mes = $(mesElement);
+
+        // 기본 extraMesButtons에 버튼 추가
+        this.addButtonToExtraMesButtons($mes);
+
+        // Astra 테마 지원: extraButtonsHost에 프록시 버튼 추가
+        this.ensureAstraBridgeButton(mesElement);
+    }
+
+    /**
+     * 기본 extraMesButtons에 버튼 추가
+     */
+    addButtonToExtraMesButtons($mes) {
         let extraMesButtons = $mes.find('.extraMesButtons');
 
         if (!extraMesButtons.length) {
@@ -104,6 +169,91 @@ export class MessageButtonsManager {
 
         $button.on('click', (e) => this.handleButtonClick(e, $mes));
         extraMesButtons.prepend($button);
+    }
+
+    /**
+     * Astra 테마용 버튼 추가
+     */
+    ensureAstraBridgeButton(mesElement) {
+        const host = resolveAstraButtonHost(mesElement);
+        if (!host) return;
+
+        // 이미 Astra가 원본 버튼을 표시하고 있으면 추가 안함
+        if (host.querySelector(IAGF_SELECTORS.generateBtn)) return;
+
+        // 이미 버튼이 있으면 추가 안함
+        if (host.querySelector(IAGF_SELECTORS.astraBridgeBtn)) return;
+
+        const $mes = $(mesElement);
+        const button = createAstraButton({
+            id: 'generate',
+            title: 'Generate Image from Message',
+            iconClasses: 'fa-solid fa-panorama',
+            onClick: (e) => this.handleButtonClick(e, $mes),
+        });
+
+        host.appendChild(button);
+    }
+
+    /**
+     * Astra 테마용 MutationObserver 시작
+     */
+    startAstraObserver() {
+        console.log(`[${extensionName}] startAstraObserver called`);
+        const chatRoot = document.querySelector('#chat');
+        if (!chatRoot) {
+            // chat이 나중에 마운트될 수 있음
+            console.log(`[${extensionName}] #chat not found, retrying...`);
+            setTimeout(() => this.startAstraObserver(), 250);
+            return;
+        }
+
+        if (this.astraObserver) {
+            console.log(`[${extensionName}] astraObserver already exists`);
+            return;
+        }
+
+        console.log(`[${extensionName}] Setting up astraObserver`);
+
+        const requestScan = () => {
+            if (this.astraScanPending) return;
+            this.astraScanPending = setTimeout(() => {
+                this.astraScanPending = null;
+                this.scanAstraButtons();
+            }, 0);
+        };
+
+        this.astraObserver = new MutationObserver((mutations) => {
+            const shouldScan = mutations.some(m =>
+                m.addedNodes?.length ||
+                (m.type === 'attributes' && m.attributeName === 'class')
+            );
+            if (shouldScan) requestScan();
+        });
+
+        this.astraObserver.observe(chatRoot, {
+            childList: true,
+            subtree: true,
+            attributes: true,
+            attributeFilter: ['class'],
+        });
+
+        // 초기 스캔
+        console.log(`[${extensionName}] Running initial scan`);
+        requestScan();
+    }
+
+    /**
+     * Astra 테마 버튼 스캔 및 추가
+     */
+    scanAstraButtons() {
+        const chatRoot = document.querySelector('#chat');
+        if (!chatRoot) return;
+
+        const messages = chatRoot.querySelectorAll('.mes[mesid]');
+        const hosts = document.querySelectorAll('.astra-messageActions__leftDefault');
+        console.log(`[${extensionName}] scanAstraButtons: ${messages.length} messages, ${hosts.length} astra hosts`);
+        messages.forEach(mes => this.ensureAstraBridgeButton(mes));
     }
 
     /**

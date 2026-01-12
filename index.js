@@ -1364,6 +1364,40 @@ function addMessageImageButton() {
         document.head.appendChild(cssLink);
     }
 
+    // Astra 테마 지원 함수들
+    function resolveAstraButtonHost(messageEl) {
+        if (!messageEl) return null;
+        return messageEl.querySelector('.astra-messageActions__leftDefault') || null;
+    }
+
+    function createAstraButton(mesElement, clickHandler) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.setAttribute('data-iagf-astra-bridge', 'true');
+        button.setAttribute('data-iagf-astra-bridge-action', 'generate');
+        button.setAttribute('aria-label', 'Generate Image from Message');
+        button.setAttribute('title', 'Generate Image from Message');
+        button.className = 'astra-messageActions__iconButton--compact';
+
+        const icon = document.createElement('i');
+        icon.className = 'fa-solid fa-panorama';
+        button.appendChild(icon);
+
+        button.addEventListener('click', clickHandler, true);
+        return button;
+    }
+
+    function ensureAstraBridgeButton(mesElement, clickHandler) {
+        const host = resolveAstraButtonHost(mesElement);
+        if (!host) return;
+
+        // 이미 버튼이 있으면 추가 안함
+        if (host.querySelector('[data-iagf-astra-bridge-action="generate"]')) return;
+
+        const button = createAstraButton(mesElement, clickHandler);
+        host.appendChild(button);
+    }
+
     function addButtonToMessage(mesElement) {
         const $mes = $(mesElement);
         let extraMesButtons = $mes.find('.extraMesButtons');
@@ -1376,7 +1410,15 @@ function addMessageImageButton() {
             }
         }
 
-        if (!extraMesButtons.length || extraMesButtons.find('.iagf_img_btn').length) {
+        // 기본 버튼이 없으면 추가
+        const hasDefaultButton = extraMesButtons.length && extraMesButtons.find('.iagf_img_btn').length;
+        if (extraMesButtons.length && !hasDefaultButton) {
+            // 기본 버튼 추가 로직은 아래에서 계속
+        } else if (hasDefaultButton) {
+            // Astra 버튼만 확인하고 추가
+            ensureAstraBridgeButton(mesElement, createClickHandler($mes));
+            return;
+        } else {
             return;
         }
 
@@ -1491,25 +1533,37 @@ function addMessageImageButton() {
                     
                     try {
                         console.log(`[${extensionName}] Requesting AI prompt generation...`);
-                        
-                        // genraw 명령이 존재하는지 확인
-                        if (!SlashCommandParser.commands['genraw']?.callback) {
-                            throw new Error('genraw command not available');
+
+                        let generatedText = null;
+
+                        // 보조 모델이 활성화되어 있으면 보조 모델 사용
+                        if (settings.auxiliaryModel?.enabled && settings.auxiliaryModel?.connectionProfileId) {
+                            console.log(`[${extensionName}] Using auxiliary model for prompt generation...`);
+                            generatedText = await generateWithAuxiliaryModel(cleanContent);
+                        } else {
+                            // 보조 모델이 없으면 genraw 명령 사용 (메인 모델)
+                            console.log(`[${extensionName}] Using main model (genraw) for prompt generation...`);
+
+                            // genraw 명령이 존재하는지 확인
+                            if (!SlashCommandParser.commands['genraw']?.callback) {
+                                throw new Error('genraw command not available');
+                            }
+
+                            // 타임아웃과 함께 AI 요청 (30초)
+                            const timeoutPromise = new Promise((_, reject) =>
+                                setTimeout(() => reject(new Error('AI generation timed out')), 30000)
+                            );
+
+                            const generationPromise = SlashCommandParser.commands['genraw'].callback(
+                                { length: maxResponseLength },
+                                promptGenerationInstruction
+                            );
+
+                            generatedText = await Promise.race([generationPromise, timeoutPromise]);
                         }
-                        
-                        // 타임아웃과 함께 AI 요청 (30초)
-                        const timeoutPromise = new Promise((_, reject) => 
-                            setTimeout(() => reject(new Error('AI generation timed out')), 30000)
-                        );
-                        
-                        const generationPromise = SlashCommandParser.commands['genraw'].callback(
-                            { length: maxResponseLength },
-                            promptGenerationInstruction
-                        );
-                        
-                        const generatedText = await Promise.race([generationPromise, timeoutPromise]);
+
                         console.log(`[${extensionName}] AI response received`);
-                        
+
                         if (generatedText) {
                             // 응답에서 프롬프트 추출 (pic 태그가 있으면 그 안에서, 없으면 전체 텍스트)
                             const picMatch = generatedText.match(/<pic[^>]*\sprompt="([^"]*)"[^>]*?>/);
@@ -1593,6 +1647,31 @@ function addMessageImageButton() {
         });
 
         extraMesButtons.prepend($button);
+
+        // Astra 테마 버튼도 추가
+        ensureAstraBridgeButton(mesElement, createClickHandler($mes));
+    }
+
+    // 클릭 핸들러 생성 함수 (Astra 버튼용)
+    function createClickHandler($mes) {
+        return async function(e) {
+            e.stopPropagation();
+            e.preventDefault();
+
+            const $button = $(e.currentTarget);
+            if ($button.hasClass('generating')) return;
+            $button.addClass('generating');
+
+            try {
+                // 기존 버튼 클릭 로직 실행
+                const defaultBtn = $mes.find('.iagf_img_btn');
+                if (defaultBtn.length) {
+                    defaultBtn.trigger('click');
+                }
+            } finally {
+                $button.removeClass('generating');
+            }
+        };
     }
 
     function resetAllButtons() {
@@ -1647,6 +1726,57 @@ function addMessageImageButton() {
 
         // 초기 로드 시 버튼 추가
         setTimeout(resetAllButtons, 500);
+
+        // Astra 테마용 MutationObserver 시작
+        startAstraObserver();
+    }
+
+    // Astra 테마용 MutationObserver
+    let astraObserver = null;
+    let astraScanPending = null;
+
+    function startAstraObserver() {
+        const chatRoot = document.querySelector('#chat');
+        if (!chatRoot) {
+            setTimeout(startAstraObserver, 250);
+            return;
+        }
+
+        if (astraObserver) return;
+
+        const requestScan = () => {
+            if (astraScanPending) return;
+            astraScanPending = setTimeout(() => {
+                astraScanPending = null;
+                scanAstraButtons();
+            }, 50);
+        };
+
+        astraObserver = new MutationObserver((mutations) => {
+            const shouldScan = mutations.some(m =>
+                m.addedNodes?.length ||
+                (m.type === 'attributes' && m.attributeName === 'class')
+            );
+            if (shouldScan) requestScan();
+        });
+
+        astraObserver.observe(chatRoot, {
+            childList: true,
+            subtree: true,
+            attributes: true,
+            attributeFilter: ['class'],
+        });
+
+        // 초기 스캔
+        requestScan();
+    }
+
+    function scanAstraButtons() {
+        const messages = document.querySelectorAll('#chat .mes[mesid]');
+        messages.forEach(mes => {
+            const $mes = $(mes);
+            ensureAstraBridgeButton(mes, createClickHandler($mes));
+        });
     }
 
     // 초기 메시지들에 버튼 추가
