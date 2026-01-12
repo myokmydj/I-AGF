@@ -8,12 +8,24 @@ import { escapeHtmlAttribute } from '../core/utils.js';
 
 let isGeneratingPreview = false;
 
+// 샘플러 목록
+const SAMPLERS = [
+    { value: 'k_euler', label: 'Euler' },
+    { value: 'k_euler_ancestral', label: 'Euler Ancestral' },
+    { value: 'k_dpmpp_2s_ancestral', label: 'DPM++ 2S Ancestral' },
+    { value: 'k_dpmpp_2m', label: 'DPM++ 2M' },
+    { value: 'k_dpmpp_sde', label: 'DPM++ SDE' },
+    { value: 'ddim_v3', label: 'DDIM' },
+];
+
 /**
  * 프리셋 갤러리 모달 초기화
  */
 export function initPresetGalleryModal() {
     if ($('#iagf_preset_gallery_modal').length) return;
-    
+
+    const samplerOptions = SAMPLERS.map(s => `<option value="${s.value}">${s.label}</option>`).join('');
+
     const modalHtml = `
     <div id="iagf_preset_gallery_modal" class="iagf-modal" style="display:none;">
         <div class="iagf-modal-overlay"></div>
@@ -24,6 +36,88 @@ export function initPresetGalleryModal() {
             </div>
             <div class="iagf-modal-body">
                 <div id="iagf_preset_cards_container" class="iagf-preset-cards"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Advanced Settings Modal -->
+    <div id="iagf_advanced_settings_modal" class="iagf-modal iagf-advanced-modal" style="display:none;">
+        <div class="iagf-modal-overlay"></div>
+        <div class="iagf-modal-content iagf-advanced-content">
+            <div class="iagf-modal-header">
+                <h3><i class="fa-solid fa-sliders"></i> <span id="iagf_advanced_preset_name">Advanced Settings</span></h3>
+                <button class="iagf-modal-close"><i class="fa-solid fa-times"></i></button>
+            </div>
+            <div class="iagf-modal-body">
+                <div class="iagf-advanced-toggle">
+                    <label>
+                        <input type="checkbox" id="iagf_advanced_enabled">
+                        <span>Enable advanced settings for this preset</span>
+                    </label>
+                    <small>When disabled, uses global SD settings</small>
+                </div>
+
+                <div id="iagf_advanced_fields" class="iagf-advanced-fields">
+                    <div class="iagf-advanced-row">
+                        <div class="iagf-advanced-field">
+                            <label>WIDTH</label>
+                            <input type="number" id="iagf_advanced_width" min="64" max="2048" step="64" placeholder="1216">
+                        </div>
+                        <div class="iagf-advanced-field">
+                            <label>HEIGHT</label>
+                            <input type="number" id="iagf_advanced_height" min="64" max="2048" step="64" placeholder="832">
+                        </div>
+                    </div>
+
+                    <div class="iagf-advanced-row">
+                        <div class="iagf-advanced-field">
+                            <label>STEPS</label>
+                            <input type="number" id="iagf_advanced_steps" min="1" max="50" placeholder="28">
+                        </div>
+                        <div class="iagf-advanced-field">
+                            <label>SCALE (CFG)</label>
+                            <input type="number" id="iagf_advanced_scale" min="0" max="10" step="0.1" placeholder="5">
+                        </div>
+                    </div>
+
+                    <div class="iagf-advanced-row">
+                        <div class="iagf-advanced-field">
+                            <label>SEED (-1 = RANDOM)</label>
+                            <input type="number" id="iagf_advanced_seed" min="-1" placeholder="-1">
+                        </div>
+                        <div class="iagf-advanced-field">
+                            <label>SAMPLER</label>
+                            <select id="iagf_advanced_sampler">
+                                <option value="">Use SD setting</option>
+                                ${samplerOptions}
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="iagf-advanced-row">
+                        <div class="iagf-advanced-field">
+                            <label>CFG RESCALE</label>
+                            <input type="number" id="iagf_advanced_cfg_rescale" min="0" max="1" step="0.05" placeholder="0">
+                        </div>
+                        <div class="iagf-advanced-field">
+                            <label>VARIETY+</label>
+                            <select id="iagf_advanced_variety">
+                                <option value="">Use SD setting</option>
+                                <option value="false">Off</option>
+                                <option value="true">On</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="iagf-advanced-actions">
+                    <button id="iagf_advanced_save" class="iagf-btn-save">
+                        <i class="fa-solid fa-check"></i> Save
+                    </button>
+                    <button id="iagf_advanced_cancel" class="iagf-btn-cancel">
+                        <i class="fa-solid fa-times"></i> Cancel
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -177,19 +271,136 @@ export function initPresetGalleryModal() {
                 height: 100dvh;
             }
         }
+
+        /* Advanced Settings Modal Styles */
+        .iagf-advanced-modal {
+            z-index: 10000;
+        }
+        .iagf-advanced-content {
+            width: min(500px, 95%);
+            max-height: 90vh;
+        }
+        .iagf-advanced-toggle {
+            margin-bottom: 15px;
+            padding: 10px;
+            background: var(--SmartThemeBorderColor, #333);
+            border-radius: 6px;
+        }
+        .iagf-advanced-toggle label {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+            color: var(--SmartThemeBodyColor, #fff);
+        }
+        .iagf-advanced-toggle small {
+            display: block;
+            margin-top: 5px;
+            margin-left: 28px;
+            color: var(--SmartThemeBodyColor, #888);
+            opacity: 0.7;
+        }
+        .iagf-advanced-fields {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .iagf-advanced-fields.disabled {
+            opacity: 0.4;
+            pointer-events: none;
+        }
+        .iagf-advanced-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+        .iagf-advanced-field {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .iagf-advanced-field label {
+            font-size: 0.75em;
+            font-weight: bold;
+            color: var(--SmartThemeBodyColor, #aaa);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .iagf-advanced-field input,
+        .iagf-advanced-field select {
+            padding: 8px 10px;
+            border: 1px solid var(--SmartThemeBorderColor, #444);
+            border-radius: 4px;
+            background: var(--SmartThemeBorderColor, #2a2a2a);
+            color: var(--SmartThemeBodyColor, #fff);
+            font-size: 0.95em;
+        }
+        .iagf-advanced-field input:focus,
+        .iagf-advanced-field select:focus {
+            outline: none;
+            border-color: var(--SmartThemeQuoteColor, #4a9);
+        }
+        .iagf-advanced-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+            justify-content: flex-end;
+        }
+        .iagf-advanced-actions button {
+            padding: 8px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: all 0.2s;
+        }
+        .iagf-btn-save {
+            background: var(--SmartThemeQuoteColor, #4a9);
+            color: white;
+        }
+        .iagf-btn-save:hover {
+            filter: brightness(1.2);
+        }
+        .iagf-btn-cancel {
+            background: var(--SmartThemeBorderColor, #444);
+            color: var(--SmartThemeBodyColor, #fff);
+        }
+        .iagf-btn-cancel:hover {
+            filter: brightness(1.2);
+        }
+        .iagf-btn-settings {
+            background: var(--SmartThemeBorderColor, #555);
+            color: var(--SmartThemeBodyColor, #fff);
+        }
+        .iagf-btn-settings:hover {
+            filter: brightness(1.2);
+        }
+        .iagf-btn-settings.has-settings {
+            background: var(--SmartThemeQuoteColor, #4a9);
+            color: white;
+        }
     </style>
     `;
     $('body').append(modalHtml);
-    
+
     $('#iagf_preset_gallery_modal .iagf-modal-overlay, #iagf_preset_gallery_modal .iagf-modal-close')
         .on('click', closePresetGallery);
+
+    // Advanced settings modal events
+    $('#iagf_advanced_settings_modal .iagf-modal-overlay, #iagf_advanced_settings_modal .iagf-modal-close, #iagf_advanced_cancel')
+        .on('click', closeAdvancedSettingsModal);
+
+    $('#iagf_advanced_enabled').on('change', function () {
+        const enabled = $(this).is(':checked');
+        $('#iagf_advanced_fields').toggleClass('disabled', !enabled);
+    });
 }
 
 /**
  * 프리셋 갤러리 열기
  */
-export function openPresetGallery(settings, onSelectPreset, onGeneratePreview) {
-    renderPresetCards(settings, onSelectPreset, onGeneratePreview);
+export function openPresetGallery(settings, onSelectPreset, onGeneratePreview, onSaveSettings) {
+    renderPresetCards(settings, onSelectPreset, onGeneratePreview, onSaveSettings);
     $('#iagf_preset_gallery_modal').fadeIn(200);
 }
 
@@ -200,24 +411,113 @@ export function closePresetGallery() {
     $('#iagf_preset_gallery_modal').fadeOut(200);
 }
 
+// 현재 편집 중인 프리셋 정보 저장
+let currentEditingPreset = null;
+let currentSettings = null;
+let currentSaveCallback = null;
+
+/**
+ * 고급 설정 모달 열기
+ */
+export function openAdvancedSettingsModal(presetKey, settings, onSave) {
+    const preset = settings.presets[presetKey];
+    if (!preset) return;
+
+    currentEditingPreset = presetKey;
+    currentSettings = settings;
+    currentSaveCallback = onSave;
+
+    const advSettings = preset.advancedSettings || {};
+
+    $('#iagf_advanced_preset_name').text(`${preset.name} - Advanced Settings`);
+    $('#iagf_advanced_enabled').prop('checked', advSettings.enabled || false);
+    $('#iagf_advanced_width').val(advSettings.width || '');
+    $('#iagf_advanced_height').val(advSettings.height || '');
+    $('#iagf_advanced_steps').val(advSettings.steps || '');
+    $('#iagf_advanced_scale').val(advSettings.scale || '');
+    $('#iagf_advanced_seed').val(advSettings.seed ?? '');
+    $('#iagf_advanced_sampler').val(advSettings.sampler || '');
+    $('#iagf_advanced_cfg_rescale').val(advSettings.cfgRescale || '');
+    $('#iagf_advanced_variety').val(advSettings.varietyPlus != null ? String(advSettings.varietyPlus) : '');
+
+    $('#iagf_advanced_fields').toggleClass('disabled', !advSettings.enabled);
+
+    // Save 버튼 이벤트
+    $('#iagf_advanced_save').off('click').on('click', saveAdvancedSettings);
+
+    $('#iagf_advanced_settings_modal').fadeIn(200);
+}
+
+/**
+ * 고급 설정 모달 닫기
+ */
+export function closeAdvancedSettingsModal() {
+    $('#iagf_advanced_settings_modal').fadeOut(200);
+    currentEditingPreset = null;
+    currentSettings = null;
+    currentSaveCallback = null;
+}
+
+/**
+ * 고급 설정 저장
+ */
+function saveAdvancedSettings() {
+    if (!currentEditingPreset || !currentSettings) return;
+
+    const preset = currentSettings.presets[currentEditingPreset];
+    if (!preset) return;
+
+    const enabled = $('#iagf_advanced_enabled').is(':checked');
+
+    const parseNumber = (val, isFloat = false) => {
+        if (val === '' || val === null || val === undefined) return null;
+        const num = isFloat ? parseFloat(val) : parseInt(val, 10);
+        return isNaN(num) ? null : num;
+    };
+
+    preset.advancedSettings = {
+        enabled: enabled,
+        width: parseNumber($('#iagf_advanced_width').val()),
+        height: parseNumber($('#iagf_advanced_height').val()),
+        steps: parseNumber($('#iagf_advanced_steps').val()),
+        scale: parseNumber($('#iagf_advanced_scale').val(), true),
+        seed: parseNumber($('#iagf_advanced_seed').val()),
+        sampler: $('#iagf_advanced_sampler').val() || null,
+        cfgRescale: parseNumber($('#iagf_advanced_cfg_rescale').val(), true),
+        varietyPlus: $('#iagf_advanced_variety').val() === '' ? null : $('#iagf_advanced_variety').val() === 'true',
+    };
+
+    if (currentSaveCallback) {
+        currentSaveCallback();
+    }
+
+    closeAdvancedSettingsModal();
+
+    // UI 새로고침
+    if (typeof toastr !== 'undefined') {
+        toastr.success('Advanced settings saved');
+    }
+}
+
 /**
  * 프리셋 카드 렌더링
  */
-export function renderPresetCards(settings, onSelectPreset, onGeneratePreview) {
+export function renderPresetCards(settings, onSelectPreset, onGeneratePreview, onSaveSettings) {
     const container = $('#iagf_preset_cards_container');
     container.empty();
-    
+
     const presets = settings.presets || {};
     const currentPreset = settings.currentPreset;
-    
+
     for (const [key, preset] of Object.entries(presets)) {
         const isActive = key === currentPreset;
         const previewImage = preset.previewImage || null;
-        
+        const hasAdvancedSettings = preset.advancedSettings?.enabled;
+
         const cardHtml = `
             <div class="iagf-preset-card ${isActive ? 'active' : ''}" data-preset-key="${key}">
                 <div class="iagf-preset-card-preview">
-                    ${previewImage 
+                    ${previewImage
                         ? `<img src="${previewImage}" alt="${escapeHtmlAttribute(preset.name)}">`
                         : '<div class="no-preview"><i class="fa-solid fa-image"></i><br>No preview</div>'
                     }
@@ -229,6 +529,9 @@ export function renderPresetCards(settings, onSelectPreset, onGeneratePreview) {
                     </div>
                 </div>
                 <div class="iagf-preset-card-actions">
+                    <button class="iagf-btn-settings ${hasAdvancedSettings ? 'has-settings' : ''}" data-preset-key="${key}" title="Advanced Settings">
+                        <i class="fa-solid fa-sliders"></i>
+                    </button>
                     <button class="iagf-btn-preview" data-preset-key="${key}" ${isGeneratingPreview ? 'disabled' : ''}>
                         <i class="fa-solid fa-eye"></i> Preview
                     </button>
@@ -237,27 +540,38 @@ export function renderPresetCards(settings, onSelectPreset, onGeneratePreview) {
         `;
         container.append(cardHtml);
     }
-    
+
     // 체크박스 이벤트
-    container.find('input[type="checkbox"]').on('change', function() {
+    container.find('input[type="checkbox"]').on('change', function () {
         const key = $(this).data('preset-key');
         if (onSelectPreset) {
             onSelectPreset(key);
         }
-        renderPresetCards(settings, onSelectPreset, onGeneratePreview);
+        renderPresetCards(settings, onSelectPreset, onGeneratePreview, onSaveSettings);
     });
-    
+
+    // 고급 설정 버튼 이벤트
+    container.find('.iagf-btn-settings').on('click', function () {
+        const key = $(this).data('preset-key');
+        openAdvancedSettingsModal(key, settings, () => {
+            if (onSaveSettings) {
+                onSaveSettings();
+            }
+            renderPresetCards(settings, onSelectPreset, onGeneratePreview, onSaveSettings);
+        });
+    });
+
     // 프리뷰 버튼 이벤트
-    container.find('.iagf-btn-preview').on('click', async function() {
+    container.find('.iagf-btn-preview').on('click', async function () {
         if (isGeneratingPreview) return;
-        
+
         const key = $(this).data('preset-key');
         const $btn = $(this);
-        
+
         isGeneratingPreview = true;
         $btn.addClass('generating').prop('disabled', true);
         container.find('.iagf-btn-preview').prop('disabled', true);
-        
+
         try {
             if (onGeneratePreview) {
                 await onGeneratePreview(key);
@@ -266,7 +580,7 @@ export function renderPresetCards(settings, onSelectPreset, onGeneratePreview) {
             isGeneratingPreview = false;
             $btn.removeClass('generating');
             container.find('.iagf-btn-preview').prop('disabled', false);
-            renderPresetCards(settings, onSelectPreset, onGeneratePreview);
+            renderPresetCards(settings, onSelectPreset, onGeneratePreview, onSaveSettings);
         }
     });
 }

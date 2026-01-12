@@ -46,6 +46,21 @@ Output ONLY the prompt inside the tag, using English Danbooru-style tags separat
             prefixPrompt: '',
             suffixPrompt: '',
             negativePrompt: '',
+            // 고급 설정 (null = SD 설정 사용)
+            advancedSettings: {
+                enabled: false,
+                model: null,
+                width: null,
+                height: null,
+                steps: null,
+                scale: null,
+                seed: null,
+                sampler: null,
+                cfgRescale: null,
+                varietyPlus: null,
+                qualityToggle: null,
+                ucPreset: null,
+            },
         },
     },
     currentPreset: 'default',
@@ -153,12 +168,14 @@ export class SettingsManager {
     initialize() {
         if (!this.extensionSettings[this.extensionName]) {
             this.extensionSettings[this.extensionName] = deepClone(defaultSettings);
+            this.saveSettingsDebounced();
         } else {
             // 기존 설정과 기본값 병합 (누락된 필드 추가)
             this.extensionSettings[this.extensionName] = deepMerge(
                 deepClone(defaultSettings),
                 this.extensionSettings[this.extensionName]
             );
+            this.saveSettingsDebounced();
         }
         return this.getSettings();
     }

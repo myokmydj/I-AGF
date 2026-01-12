@@ -77,13 +77,34 @@ const iagfManagers = {
     naiApi: null,
 };
 
-// SettingsManager를 통해 설정을 초기화하고 주요 매니저를 준비
-initModularManagers();
+// SettingsManager 초기화는 jQuery ready 이후에 수행
+// initModularManagers()는 $(function() {...}) 내부에서 호출됨
+
+/**
+ * 설정을 안전하게 가져오는 헬퍼 함수
+ * extension_settings가 덮어써져도 iagfManagers의 설정을 fallback으로 사용
+ */
+function getIAGFSettings() {
+    if (extension_settings[extensionName]) {
+        return extension_settings[extensionName];
+    }
+    if (iagfManagers.presets?.settings) {
+        extension_settings[extensionName] = iagfManagers.presets.settings;
+        return iagfManagers.presets.settings;
+    }
+    return null;
+}
 
 function initModularManagers() {
     try {
         settingsManager = new SettingsManager(extensionName, extension_settings, saveSettingsDebounced);
         const settings = settingsManager.initialize();
+
+        // extension_settings에 설정이 제대로 연결되었는지 확인
+        if (!extension_settings[extensionName]) {
+            console.warn(`[${extensionName}] Settings not properly linked, re-linking...`);
+            extension_settings[extensionName] = settings;
+        }
 
         iagfManagers.presets = new PresetsManager(settings, saveSettingsDebounced, getRequestHeaders);
         iagfManagers.vibeTransfer = new VibeTransferManager(settings, saveSettingsDebounced);
@@ -378,7 +399,7 @@ function initPresetGalleryModal() {
 
 function openPresetGallery() {
     const settings = extension_settings[extensionName];
-    openPresetGalleryModule(settings, handlePresetSelect, handleGeneratePreview);
+    openPresetGalleryModule(settings, handlePresetSelect, handleGeneratePreview, saveSettingsDebounced);
 }
 
 function closePresetGallery() {
@@ -952,15 +973,20 @@ function showNAIStatusFeedback(extraParams) {
 }
 
 async function generateImageWithSD(prompt, extraParams = {}) {
-    const settings = extension_settings[extensionName];
-    
+    const settings = getIAGFSettings();
+
     showNAIStatusFeedback(extraParams);
-    
+
     const sdSettings = extension_settings.sd || {};
-    
+
     const isNAI = sdSettings.source === 'novel';
-    
-    if (isNAI && (extraParams.vibeTransfer || extraParams.characterReference || extraParams.characterPrompts?.length > 0)) {
+
+    // 프리셋 고급 설정이 활성화되어 있는지 확인
+    const currentPreset = settings?.presets?.[settings?.currentPreset];
+    const hasAdvancedSettings = currentPreset?.advancedSettings?.enabled;
+
+    // NAI이고 (특수 파라미터가 있거나 고급 설정이 활성화된 경우) NAI 직접 호출
+    if (isNAI && (extraParams.vibeTransfer || extraParams.characterReference || extraParams.characterPrompts?.length > 0 || hasAdvancedSettings)) {
         return await generateImageWithNAIParams(prompt, extraParams, sdSettings);
     } else {
         const originalNegPrompt = sdSettings.negative_prompt;
@@ -1018,8 +1044,13 @@ async function generateImageWithNAIParams(prompt, extraParams, sdSettings) {
             charRefStyleAware = extraParams.characterReference.styleAware ?? false;
         }
 
-        // Direct NAI call when any NAI-specific params are present
-        if (vibeImages.length > 0 || charRefImages.length > 0 || extraParams.characterPrompts?.length > 0) {
+        // Check if preset advanced settings are enabled
+        const settings = getIAGFSettings();
+        const currentPreset = settings?.presets?.[settings?.currentPreset];
+        const hasAdvancedSettings = currentPreset?.advancedSettings?.enabled;
+
+        // Direct NAI call when any NAI-specific params are present OR preset advanced settings are enabled
+        if (vibeImages.length > 0 || charRefImages.length > 0 || extraParams.characterPrompts?.length > 0 || hasAdvancedSettings) {
             try {
                 const result = await callNAIImageGeneration(prompt, extraParams.negativePrompt || '', {
                     vibeImages,
@@ -1076,15 +1107,103 @@ async function generateImageWithNAIParams(prompt, extraParams, sdSettings) {
 
 async function callNAIImageGeneration(prompt, negativePrompt, options = {}) {
     const sdSettings = extension_settings.sd || {};
-    
-    const model = sdSettings.model || 'nai-diffusion-4-5-full';
-    const sampler = sdSettings.sampler || 'k_euler_ancestral';
+    const settings = getIAGFSettings();
+    const currentPreset = settings?.presets?.[settings?.currentPreset];
+    const advSettings = currentPreset?.advancedSettings?.enabled ? currentPreset.advancedSettings : null;
+
+    const model = advSettings?.model || sdSettings.model || 'nai-diffusion-4-5-full';
+    const sampler = advSettings?.sampler || sdSettings.sampler || 'k_euler_ancestral';
     const scheduler = sdSettings.scheduler || 'native';
-    const steps = Math.min(sdSettings.steps || 28, 50);
-    const scale = parseFloat(sdSettings.scale) || 5.0;
-    const width = parseInt(sdSettings.width) || 832;
-    const height = parseInt(sdSettings.height) || 1216;
-    const seed = sdSettings.seed >= 0 ? sdSettings.seed : Math.floor(Math.random() * 2147483647);
+    const steps = Math.min(advSettings?.steps ?? sdSettings.steps ?? 28, 50);
+    const scale = advSettings?.scale ?? parseFloat(sdSettings.scale) ?? 5.0;
+    const width = advSettings?.width ?? parseInt(sdSettings.width) ?? 832;
+    const height = advSettings?.height ?? parseInt(sdSettings.height) ?? 1216;
+    const cfgRescale = advSettings?.cfgRescale ?? parseFloat(sdSettings.cfg_rescale) ?? 0;
+    const varietyPlus = advSettings?.varietyPlus ?? sdSettings.variety_plus ?? false;
+    const qualityToggle = advSettings?.qualityToggle ?? sdSettings.novel_quality_toggle ?? true;
+    const ucPreset = advSettings?.ucPreset ?? sdSettings.novel_ucpreset ?? 0;
+
+    // Quality Tags - 모델별로 프롬프트 끝에 추가
+    const qualityTags = {
+        'nai-diffusion-4-5-full': 'location, very aesthetic, masterpiece, no text',
+        'nai-diffusion-4-5-curated': 'location, masterpiece, no text, -0.8::feet::, rating:general',
+        'nai-diffusion-4-full': 'no text, best quality, very aesthetic, absurdres',
+        'nai-diffusion-4-curated': 'rating:general, amazing quality, very aesthetic, absurdres',
+        'nai-diffusion-3': 'best quality, amazing quality, very aesthetic, absurdres',
+        'nai-diffusion-furry-3': '{best quality}, {amazing quality}',
+    };
+
+    // UC Presets - 모델별 네거티브 프롬프트 앞에 추가
+    // V4.5: 0=Heavy, 1=Light, 2=Furry Focus, 3=Human Focus, 4=None
+    // V4: 0=Heavy, 1=Light, 2=None
+    // V3: 0=Heavy, 1=Light, 2=Human Focus, 3=None
+    // Furry V3: 0=Heavy, 1=Light, 2=None
+    const ucPresets = {
+        'nai-diffusion-4-5-full': {
+            0: 'lowres, artistic error, film grain, scan artifacts, worst quality, bad quality, jpeg artifacts, very displeasing, chromatic aberration, dithering, halftone, screentone, multiple views, logo, too many watermarks, negative space, blank page,',
+            1: 'lowres, artistic error, scan artifacts, worst quality, bad quality, jpeg artifacts, multiple views, very displeasing, too many watermarks, negative space, blank page,',
+            2: '{worst quality}, distracting watermark, unfinished, bad quality, {widescreen}, upscale, {sequence}, {{grandfathered content}}, blurred foreground, chromatic aberration, sketch, everyone, [sketch background], simple, [flat colors], ych (character), outline, multiple scenes, [[horror (theme)]], comic,',
+            3: 'lowres, artistic error, film grain, scan artifacts, worst quality, bad quality, jpeg artifacts, very displeasing, chromatic aberration, dithering, halftone, screentone, multiple views, logo, too many watermarks, negative space, blank page, @_@, mismatched pupils, glowing eyes, bad anatomy,',
+            4: '',
+        },
+        'nai-diffusion-4-5-curated': {
+            0: 'blurry, lowres, upscaled, artistic error, film grain, scan artifacts, worst quality, bad quality, jpeg artifacts, very displeasing, chromatic aberration, halftone, multiple views, logo, too many watermarks, negative space, blank page,',
+            1: 'blurry, lowres, upscaled, artistic error, scan artifacts, jpeg artifacts, logo, too many watermarks, negative space, blank page,',
+            2: '{worst quality}, distracting watermark, unfinished, bad quality, {widescreen}, upscale, {sequence}, {{grandfathered content}}, blurred foreground, chromatic aberration, sketch, everyone, [sketch background], simple, [flat colors], ych (character), outline, multiple scenes, [[horror (theme)]], comic,',
+            3: 'blurry, lowres, upscaled, artistic error, film grain, scan artifacts, bad anatomy, bad hands, worst quality, bad quality, jpeg artifacts, very displeasing, chromatic aberration, halftone, multiple views, logo, too many watermarks, @_@, mismatched pupils, glowing eyes, negative space, blank page,',
+            4: '',
+        },
+        'nai-diffusion-4-full': {
+            0: 'blurry, lowres, error, film grain, scan artifacts, worst quality, bad quality, jpeg artifacts, very displeasing, chromatic aberration, multiple views, logo, too many watermarks,',
+            1: 'blurry, lowres, error, worst quality, bad quality, jpeg artifacts, very displeasing,',
+            2: '',
+        },
+        'nai-diffusion-4-curated': {
+            0: 'blurry, lowres, error, film grain, scan artifacts, worst quality, bad quality, jpeg artifacts, very displeasing, chromatic aberration, logo, dated, signature, multiple views, gigantic breasts,',
+            1: 'blurry, lowres, error, worst quality, bad quality, jpeg artifacts, very displeasing, logo, dated, signature,',
+            2: '',
+        },
+        'nai-diffusion-3': {
+            0: 'lowres, {bad}, error, fewer, extra, missing, worst quality, jpeg artifacts, bad quality, watermark, unfinished, displeasing, chromatic aberration, signature, extra digits, artistic error, username, scan, [abstract],',
+            1: 'lowres, jpeg artifacts, worst quality, watermark, blurry, very displeasing,',
+            2: 'lowres, {bad}, error, fewer, extra, missing, worst quality, jpeg artifacts, bad quality, watermark, unfinished, displeasing, chromatic aberration, signature, extra digits, artistic error, username, scan, [abstract], bad anatomy, bad hands, @_@, mismatched pupils, heart-shaped pupils, glowing eyes,',
+            3: '',
+        },
+        'nai-diffusion-furry-3': {
+            0: '{{worst quality}}, [displeasing], {unusual pupils}, guide lines, {{unfinished}}, {bad}, url, artist name, {{tall image}}, mosaic, {sketch page}, comic panel, impact (font), [dated], {logo}, ych, {what}, {where is your god now}, {distorted text}, repeated text, {floating head}, {1994}, {widescreen}, absolutely everyone, sequence, {compression artifacts}, hard translated, {cropped}, {commissioner name}, unknown text, high contrast,',
+            1: '{worst quality}, guide lines, unfinished, bad, url, tall image, widescreen, compression artifacts, unknown text,',
+            2: '',
+        },
+    };
+
+    // 프롬프트와 네거티브 프롬프트 수정
+    let finalPrompt = prompt;
+    let finalNegativePrompt = negativePrompt;
+
+    // Quality Tags 추가 (끝에)
+    if (qualityToggle && qualityTags[model]) {
+        finalPrompt = prompt + ', ' + qualityTags[model];
+    }
+
+    // UC Preset 추가 (앞에)
+    const modelUcPresets = ucPresets[model] || ucPresets['nai-diffusion-4-5-full'];
+    const ucTags = modelUcPresets[ucPreset] || '';
+    if (ucTags) {
+        finalNegativePrompt = ucTags + ' ' + negativePrompt;
+    }
+
+    console.log('[IAGF] model:', model, '| qualityToggle:', qualityToggle, '| ucPreset:', ucPreset);
+    console.log('[IAGF] Final prompt suffix:', qualityToggle ? qualityTags[model] : 'none');
+    console.log('[IAGF] UC prefix:', ucTags || 'none');
+
+    let seed;
+    if (advSettings?.seed != null && advSettings.seed >= 0) {
+        seed = advSettings.seed;
+    } else if (sdSettings.seed >= 0) {
+        seed = sdSettings.seed;
+    } else {
+        seed = Math.floor(Math.random() * 2147483647);
+    }
     
     const vibeImages = options.vibeImages || [];
     const vibeStrengths = (options.vibeStrengths || []).map(v => {
@@ -1107,7 +1226,7 @@ async function callNAIImageGeneration(prompt, negativePrompt, options = {}) {
     const characterPositionEnabled = options.characterPositionEnabled || false;
     
     const requestBody = {
-        input: prompt,
+        input: finalPrompt,
         model: model,
         action: 'generate',
         parameters: {
@@ -1122,17 +1241,21 @@ async function callNAIImageGeneration(prompt, negativePrompt, options = {}) {
             steps: steps,
             seed: seed,
             n_samples: 1,
-            ucPreset: 0,
-            negative_prompt: negativePrompt,
-            qualityToggle: true,
+            ucPreset: 3,
+            uc_preset: 3,
+            negative_prompt: finalNegativePrompt,
+            qualityToggle: false,
+            quality_toggle: false,
             use_coords: false,
             legacy: false,
             legacy_v3_extend: false,
             prefer_brownian: true,
             autoSmea: false,
+            cfg_rescale: cfgRescale,
+            skip_cfg_above_sigma: varietyPlus ? 19 : null,
             v4_prompt: {
                 caption: {
-                    base_caption: prompt,
+                    base_caption: finalPrompt,
                     char_captions: [],
                 },
                 use_coords: false,
@@ -1140,14 +1263,14 @@ async function callNAIImageGeneration(prompt, negativePrompt, options = {}) {
             },
             v4_negative_prompt: {
                 caption: {
-                    base_caption: negativePrompt,
+                    base_caption: finalNegativePrompt,
                     char_captions: [],
                 },
                 legacy_uc: false,
             },
         },
     };
-    
+
     if (vibeImages.length > 0) {
         requestBody.parameters.reference_image_multiple = vibeImages.map(img => stripBase64Header(img));
         requestBody.parameters.reference_strength_multiple = vibeStrengths;
@@ -1202,7 +1325,9 @@ async function callNAIImageGeneration(prompt, negativePrompt, options = {}) {
     
     let response;
     let usedPlugin = false;
-    
+
+    console.log('[IAGF] Sending to NAI - qualityToggle:', requestBody.parameters.qualityToggle, 'ucPreset:', requestBody.parameters.ucPreset);
+
     try {
         response = await fetch('/api/plugins/nai-reference-image/generate', {
             method: 'POST',
@@ -1236,16 +1361,27 @@ async function callNAIImageGeneration(prompt, negativePrompt, options = {}) {
 
 async function callNAIImageGenerationFallback(prompt, negativePrompt, options = {}) {
     const sdSettings = extension_settings.sd || {};
-    
+    const settings = extension_settings[extensionName];
+    const currentPreset = settings?.presets?.[settings?.currentPreset];
+    const advSettings = currentPreset?.advancedSettings?.enabled ? currentPreset.advancedSettings : null;
+
     const model = sdSettings.model || 'nai-diffusion-4-5-full';
-    const sampler = sdSettings.sampler || 'k_euler_ancestral';
+    const sampler = advSettings?.sampler || sdSettings.sampler || 'k_euler_ancestral';
     const scheduler = sdSettings.scheduler || 'native';
-    const steps = Math.min(sdSettings.steps || 28, 50);
-    const scale = parseFloat(sdSettings.scale) || 5.0;
-    const width = parseInt(sdSettings.width) || 832;
-    const height = parseInt(sdSettings.height) || 1216;
-    const seed = sdSettings.seed >= 0 ? sdSettings.seed : Math.floor(Math.random() * 2147483647);
-    
+    const steps = Math.min(advSettings?.steps ?? sdSettings.steps ?? 28, 50);
+    const scale = advSettings?.scale ?? parseFloat(sdSettings.scale) ?? 5.0;
+    const width = advSettings?.width ?? parseInt(sdSettings.width) ?? 832;
+    const height = advSettings?.height ?? parseInt(sdSettings.height) ?? 1216;
+
+    let seed;
+    if (advSettings?.seed != null && advSettings.seed >= 0) {
+        seed = advSettings.seed;
+    } else if (sdSettings.seed >= 0) {
+        seed = sdSettings.seed;
+    } else {
+        seed = Math.floor(Math.random() * 2147483647);
+    }
+
     const requestBody = {
         prompt: prompt,
         model: model,
@@ -1258,7 +1394,14 @@ async function callNAIImageGenerationFallback(prompt, negativePrompt, options = 
         negative_prompt: negativePrompt,
         seed: seed,
     };
-    
+
+    console.log('[IAGF] Final requestBody.parameters:', {
+        qualityToggle: requestBody.parameters.qualityToggle,
+        ucPreset: requestBody.parameters.ucPreset,
+        scale: requestBody.parameters.scale,
+        steps: requestBody.parameters.steps,
+    });
+
     const response = await fetch('/api/novelai/generate-image', {
         method: 'POST',
         headers: getRequestHeaders(),
@@ -1290,6 +1433,9 @@ function saveBase64AsFile(base64Data, folder, filename, format) {
 }
 
 $(function () {
+    // extension_settings가 준비된 후 매니저 초기화
+    initModularManagers();
+
     (async function () {
         try {
             const settingsHtml = await $.get(
@@ -1687,6 +1833,10 @@ function addMessageImageButton() {
         }
     }
 
+    // Astra 테마용 MutationObserver 변수 (함수 호출 전에 선언해야 TDZ 에러 방지)
+    let astraObserver = null;
+    let astraScanPending = null;
+
     // ST 이벤트 기반으로 버튼 추가
     if (!window.iagfMessageButtonsInitialized) {
         window.iagfMessageButtonsInitialized = true;
@@ -1730,10 +1880,6 @@ function addMessageImageButton() {
         // Astra 테마용 MutationObserver 시작
         startAstraObserver();
     }
-
-    // Astra 테마용 MutationObserver
-    let astraObserver = null;
-    let astraScanPending = null;
 
     function startAstraObserver() {
         const chatRoot = document.querySelector('#chat');
@@ -2194,17 +2340,17 @@ async function handleRegeneration(mesId, params) {
     if (result) {
         // 메시지에 이미지 추가
         if (!message.extra) message.extra = {};
-        
+
         // 새 media API 사용
         if (!Array.isArray(message.extra.media)) {
             message.extra.media = [];
         }
-        
+
         // 새 이미지를 media 배열에 추가 (SillyTavern 형식: url, type)
         message.extra.media.push({ url: result, type: 'image', title: prompt });
         message.extra.title = prompt;
         message.extra.inline_image = true;
-        
+
         // 메타데이터 업데이트
         message.extra.iagf_gen_params = {
             prompt,
@@ -2220,17 +2366,19 @@ async function handleRegeneration(mesId, params) {
             variety,
             model: extension_settings.sd?.model || 'nai-diffusion-4-5-full',
         };
-        
-        // UI 업데이트 - updateMessageBlock 사용하여 완전 갱신
-        updateMessageBlock(mesId, message, { rerenderMessage: false });
-        
-        await context.saveChat();
-        
-        // 새 이미지로 swipe 이동
+
+        // UI 업데이트 - appendMediaToMessage 사용하여 슬라이드에 추가
         const $mes = $(`.mes[mesid="${mesId}"]`);
-        const swipeIndex = (message.extra.media?.length || 1) - 1;
-        setTimeout(() => navigateToImageSwipe($mes, swipeIndex), 300);
-        
+        appendMediaToMessage(message, $mes);
+
+        await context.saveChat();
+
+        // 새 이미지로 swipe 이동
+        setTimeout(() => {
+            const swipeIndex = (message.extra.media?.length || 1) - 1;
+            navigateToImageSwipe($mes, swipeIndex);
+        }, 300);
+
         toastr.success('Image regenerated!');
     }
 }
@@ -2267,12 +2415,12 @@ async function regenerateWithNewSeed(mesId) {
         
         if (result) {
             if (!message.extra) message.extra = {};
-            
+
             // 새 media API 사용
             if (!Array.isArray(message.extra.media)) {
                 message.extra.media = [];
             }
-            
+
             // 새 이미지를 media 배열에 추가 (SillyTavern 형식: url, type)
             const currentTitle = message.extra.title || genParams.prompt || '';
             message.extra.media.push({ url: result, type: 'image', title: currentTitle });
@@ -2280,17 +2428,19 @@ async function regenerateWithNewSeed(mesId) {
             if (message.extra.iagf_gen_params) {
                 message.extra.iagf_gen_params.seed = newSeed;
             }
-            
-            // UI 업데이트 - updateMessageBlock 사용하여 완전 갱신
-            updateMessageBlock(mesId, message, { rerenderMessage: false });
-            
-            await context.saveChat();
-            
-            // 새 이미지로 swipe 이동
+
+            // UI 업데이트 - appendMediaToMessage 사용하여 슬라이드에 추가
             const $mes = $(`.mes[mesid="${mesId}"]`);
-            const swipeIndex = (message.extra.media?.length || 1) - 1;
-            setTimeout(() => navigateToImageSwipe($mes, swipeIndex), 300);
-            
+            appendMediaToMessage(message, $mes);
+
+            await context.saveChat();
+
+            // 새 이미지로 swipe 이동
+            setTimeout(() => {
+                const swipeIndex = (message.extra.media?.length || 1) - 1;
+                navigateToImageSwipe($mes, swipeIndex);
+            }, 300);
+
             toastr.success('Image regenerated with new seed!');
         }
     } catch (error) {

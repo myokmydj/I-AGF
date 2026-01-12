@@ -1,6 +1,34 @@
 import { extensionName, INSERT_TYPE } from '../../core/constants.js';
 import { escapeHtmlAttribute } from '../../core/utils.js';
 
+// 샘플러 목록
+const SAMPLERS = [
+    { value: 'k_euler', label: 'Euler' },
+    { value: 'k_euler_ancestral', label: 'Euler Ancestral' },
+    { value: 'k_dpmpp_2s_ancestral', label: 'DPM++ 2S Ancestral' },
+    { value: 'k_dpmpp_2m', label: 'DPM++ 2M' },
+    { value: 'k_dpmpp_sde', label: 'DPM++ SDE' },
+    { value: 'ddim_v3', label: 'DDIM' },
+];
+
+const NAI_MODELS = [
+    { value: 'nai-diffusion-4-5-full', label: 'NAI Diffusion V4.5 Full' },
+    { value: 'nai-diffusion-4-5-curated', label: 'NAI Diffusion V4.5 Curated' },
+    { value: 'nai-diffusion-4-full', label: 'NAI Diffusion V4 Full' },
+    { value: 'nai-diffusion-4-curated', label: 'NAI Diffusion V4 Curated' },
+    { value: 'nai-diffusion-3', label: 'NAI Diffusion Anime V3' },
+    { value: 'nai-diffusion-furry-3', label: 'NAI Diffusion Furry V3' },
+];
+
+// V4.5: 0=Heavy, 1=Light, 2=Furry Focus, 3=Human Focus, 4=None
+const UC_PRESETS = [
+    { value: 0, label: 'Heavy' },
+    { value: 1, label: 'Light' },
+    { value: 2, label: 'Furry Focus' },
+    { value: 3, label: 'Human Focus' },
+    { value: 4, label: 'None' },
+];
+
 export class DashboardModal {
     constructor(options) {
         this.settings = options.settings;
@@ -366,7 +394,7 @@ export class DashboardModal {
                         </div>
                         <div class="field-group">
                             <label>Negative Prompt</label>
-                            <textarea id="preset-negative" class="iagf-textarea" rows="3" 
+                            <textarea id="preset-negative" class="iagf-textarea" rows="3"
                                 placeholder="제외할 요소들">${escapeHtmlAttribute(currentPreset.negativePrompt || '')}</textarea>
                         </div>
                         <div class="field-group">
@@ -374,6 +402,128 @@ export class DashboardModal {
                                 <i class="fa-solid fa-wand-magic-sparkles"></i> 미리보기 생성
                             </button>
                         </div>
+
+                        <!-- Advanced Settings Section -->
+                        ${this.renderAdvancedSettingsSection(currentPreset)}
+                    </div>
+                </div>
+            </div>
+        </div>`;
+    }
+
+    renderAdvancedSettingsSection(preset) {
+        const advSettings = preset.advancedSettings || {};
+        const samplerOptions = SAMPLERS.map(s =>
+            `<option value="${s.value}" ${advSettings.sampler === s.value ? 'selected' : ''}>${s.label}</option>`
+        ).join('');
+        const modelOptions = NAI_MODELS.map(m =>
+            `<option value="${m.value}" ${advSettings.model === m.value ? 'selected' : ''}>${m.label}</option>`
+        ).join('');
+        const ucPresetOptions = UC_PRESETS.map(u =>
+            `<option value="${u.value}" ${advSettings.ucPreset === u.value ? 'selected' : ''}>${u.label}</option>`
+        ).join('');
+
+        return `
+        <div class="iagf-advanced-section">
+            <div class="advanced-section-header">
+                <h4><i class="fa-solid fa-sliders"></i> 고급 설정</h4>
+                <label class="iagf-toggle mini">
+                    <input type="checkbox" id="preset-advanced-enabled" ${advSettings.enabled ? 'checked' : ''}>
+                    <span class="toggle-slider"></span>
+                    <span class="toggle-label">활성화</span>
+                </label>
+            </div>
+            <p class="section-desc">비활성화 시 SD 기본 설정을 사용합니다. 빈 값은 SD 기본값 사용.</p>
+
+            <div class="advanced-fields-grid ${!advSettings.enabled ? 'disabled' : ''}">
+                <div class="field-row">
+                    <div class="field-group full">
+                        <label>MODEL</label>
+                        <select id="preset-adv-model" class="iagf-select">
+                            <option value="">SD 설정 사용</option>
+                            ${modelOptions}
+                        </select>
+                    </div>
+                </div>
+
+                <div class="field-row">
+                    <div class="field-group half">
+                        <label>WIDTH</label>
+                        <input type="number" id="preset-adv-width" class="iagf-input"
+                            min="64" max="2048" step="64" placeholder="SD 설정"
+                            value="${advSettings.width || ''}">
+                    </div>
+                    <div class="field-group half">
+                        <label>HEIGHT</label>
+                        <input type="number" id="preset-adv-height" class="iagf-input"
+                            min="64" max="2048" step="64" placeholder="SD 설정"
+                            value="${advSettings.height || ''}">
+                    </div>
+                </div>
+
+                <div class="field-row">
+                    <div class="field-group half">
+                        <label>STEPS</label>
+                        <input type="number" id="preset-adv-steps" class="iagf-input"
+                            min="1" max="50" placeholder="SD 설정"
+                            value="${advSettings.steps || ''}">
+                    </div>
+                    <div class="field-group half">
+                        <label>SCALE (CFG)</label>
+                        <input type="number" id="preset-adv-scale" class="iagf-input"
+                            min="0" max="10" step="0.1" placeholder="SD 설정"
+                            value="${advSettings.scale || ''}">
+                    </div>
+                </div>
+
+                <div class="field-row">
+                    <div class="field-group half">
+                        <label>SEED (-1 = RANDOM)</label>
+                        <input type="number" id="preset-adv-seed" class="iagf-input"
+                            min="-1" placeholder="-1"
+                            value="${advSettings.seed ?? ''}">
+                    </div>
+                    <div class="field-group half">
+                        <label>SAMPLER</label>
+                        <select id="preset-adv-sampler" class="iagf-select">
+                            <option value="">SD 설정 사용</option>
+                            ${samplerOptions}
+                        </select>
+                    </div>
+                </div>
+
+                <div class="field-row">
+                    <div class="field-group half">
+                        <label>CFG RESCALE</label>
+                        <input type="number" id="preset-adv-cfg-rescale" class="iagf-input"
+                            min="0" max="1" step="0.05" placeholder="SD 설정"
+                            value="${advSettings.cfgRescale || ''}">
+                    </div>
+                    <div class="field-group half">
+                        <label>VARIETY+</label>
+                        <select id="preset-adv-variety" class="iagf-select">
+                            <option value="" ${advSettings.varietyPlus == null ? 'selected' : ''}>SD 설정 사용</option>
+                            <option value="false" ${advSettings.varietyPlus === false ? 'selected' : ''}>Off</option>
+                            <option value="true" ${advSettings.varietyPlus === true ? 'selected' : ''}>On</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="field-row">
+                    <div class="field-group half">
+                        <label>QUALITY TAGS</label>
+                        <select id="preset-adv-quality" class="iagf-select">
+                            <option value="" ${advSettings.qualityToggle == null ? 'selected' : ''}>SD 설정 사용</option>
+                            <option value="true" ${advSettings.qualityToggle === true ? 'selected' : ''}>On</option>
+                            <option value="false" ${advSettings.qualityToggle === false ? 'selected' : ''}>Off</option>
+                        </select>
+                    </div>
+                    <div class="field-group half">
+                        <label>UC PRESET</label>
+                        <select id="preset-adv-uc-preset" class="iagf-select">
+                            <option value="" ${advSettings.ucPreset == null ? 'selected' : ''}>SD 설정 사용</option>
+                            ${ucPresetOptions}
+                        </select>
                     </div>
                 </div>
             </div>
@@ -869,6 +1019,92 @@ export class DashboardModal {
         $content.find('#btn-generate-preview').on('click', async () => {
             await this.generatePresetPreview(this.settings.currentPreset);
         });
+
+        // Advanced settings events
+        $content.find('#preset-advanced-enabled').on('change', (e) => {
+            const enabled = e.target.checked;
+            $content.find('.advanced-fields-grid').toggleClass('disabled', !enabled);
+            this.updateAdvancedSettings({ enabled });
+        });
+
+        $content.find('#preset-adv-width').on('change', (e) => {
+            this.updateAdvancedSettings({ width: this.parseAdvancedNumber(e.target.value) });
+        });
+
+        $content.find('#preset-adv-height').on('change', (e) => {
+            this.updateAdvancedSettings({ height: this.parseAdvancedNumber(e.target.value) });
+        });
+
+        $content.find('#preset-adv-steps').on('change', (e) => {
+            this.updateAdvancedSettings({ steps: this.parseAdvancedNumber(e.target.value) });
+        });
+
+        $content.find('#preset-adv-scale').on('change', (e) => {
+            this.updateAdvancedSettings({ scale: this.parseAdvancedNumber(e.target.value, true) });
+        });
+
+        $content.find('#preset-adv-seed').on('change', (e) => {
+            this.updateAdvancedSettings({ seed: this.parseAdvancedNumber(e.target.value) });
+        });
+
+        $content.find('#preset-adv-sampler').on('change', (e) => {
+            this.updateAdvancedSettings({ sampler: e.target.value || null });
+        });
+
+        $content.find('#preset-adv-cfg-rescale').on('change', (e) => {
+            this.updateAdvancedSettings({ cfgRescale: this.parseAdvancedNumber(e.target.value, true) });
+        });
+
+        $content.find('#preset-adv-variety').on('change', (e) => {
+            const val = e.target.value;
+            this.updateAdvancedSettings({ varietyPlus: val === '' ? null : val === 'true' });
+        });
+
+        $content.find('#preset-adv-model').on('change', (e) => {
+            const val = e.target.value;
+            this.updateAdvancedSettings({ model: val === '' ? null : val });
+        });
+
+        $content.find('#preset-adv-quality').on('change', (e) => {
+            const val = e.target.value;
+            this.updateAdvancedSettings({ qualityToggle: val === '' ? null : val === 'true' });
+        });
+
+        $content.find('#preset-adv-uc-preset').on('change', (e) => {
+            const val = e.target.value;
+            this.updateAdvancedSettings({ ucPreset: val === '' ? null : parseInt(val, 10) });
+        });
+    }
+
+    parseAdvancedNumber(val, isFloat = false) {
+        if (val === '' || val === null || val === undefined) return null;
+        const num = isFloat ? parseFloat(val) : parseInt(val, 10);
+        return isNaN(num) ? null : num;
+    }
+
+    updateAdvancedSettings(updates) {
+        const preset = this.settings.presets[this.settings.currentPreset];
+        if (!preset) return;
+
+        if (!preset.advancedSettings) {
+            preset.advancedSettings = {
+                enabled: false,
+                model: null,
+                width: null,
+                height: null,
+                steps: null,
+                scale: null,
+                seed: null,
+                sampler: null,
+                cfgRescale: null,
+                varietyPlus: null,
+                qualityToggle: null,
+                ucPreset: null,
+            };
+        }
+
+        Object.assign(preset.advancedSettings, updates);
+        this.saveSettings();
     }
 
     async generatePresetPreview(presetKey) {

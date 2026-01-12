@@ -46,10 +46,44 @@ export class PresetsManager {
             suffixPrompt: '',
             negativePrompt: '',
             previewImage: null,
+            advancedSettings: {
+                enabled: false,
+                width: null,
+                height: null,
+                steps: null,
+                scale: null,
+                seed: null,
+                sampler: null,
+                cfgRescale: null,
+                varietyPlus: null,
+            },
         };
         this.settings.currentPreset = key;
         this.saveSettings();
         return key;
+    }
+
+    /**
+     * 현재 프리셋의 고급 설정 가져오기
+     */
+    getAdvancedSettings() {
+        const preset = this.getCurrentPreset();
+        if (!preset?.advancedSettings?.enabled) return null;
+        return preset.advancedSettings;
+    }
+
+    /**
+     * 프리셋 고급 설정 업데이트
+     */
+    updateAdvancedSettings(presetKey, advancedSettings) {
+        if (!this.settings.presets[presetKey]) return false;
+
+        this.settings.presets[presetKey].advancedSettings = {
+            ...this.settings.presets[presetKey].advancedSettings,
+            ...advancedSettings,
+        };
+        this.saveSettings();
+        return true;
     }
 
     /**
