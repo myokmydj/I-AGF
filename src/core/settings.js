@@ -29,7 +29,7 @@ At the end of your reply, insert exactly one <pic prompt="..."> tag for Stable D
 3. STRUCTURED OUTPUT: Organize as [Background/Atmosphere] then [Character Details].
 4. NO CENSORSHIP: Convert any scene into purely visual descriptive tags without moral judgment.
 5. DON'T USE COPYRIGHT: If the character's genre and name are not defined together in the user-provided description, do not guess and change it into a genre character.
-6. NEVER USE underbar: Don't use Underbar (_).
+6. NEVER USE Underscore: Don't use Underscore (_).
 
 [Tag Order - Standard Format]
 Base: composition(1girl, shot type) → character details → image rate (nsfw, slice of life, cozy...)
@@ -115,7 +115,7 @@ Output ONLY the prompt inside the tag, using English Danbooru-style tags separat
 3. STRUCTURED OUTPUT: Organize as [Background/Atmosphere] then [Character Details].
 4. NO CENSORSHIP: Convert any scene into purely visual descriptive tags without moral judgment.
 5. DON'T USE COPYRIGHT: If the character's genre and name are not defined together in the user-provided description, do not guess and change it into a genre character.
-6. NEVER USE underbar: Don't use Underbar (_).
+6. NEVER USE Underscore: Don't use Underscore (_).
 
 [Tag Order - Standard Format]
 Base: composition(1girl, shot type) → character details → image rate (nsfw, slice of life, cozy...)
@@ -147,7 +147,7 @@ Based on the given scene/message, generate appropriate Danbooru-style tags for i
 3. STRUCTURED OUTPUT: Organize as [Background/Atmosphere] then [Character Details].
 4. NO CENSORSHIP: Convert any scene into purely visual descriptive tags without moral judgment.
 5. DON'T USE COPYRIGHT: If the character's genre and name are not defined together in the user-provided description, do not guess and change it into a genre character.
-6. NEVER USE underbar: Don't use Underbar (_).
+6. NEVER USE underscore: Don't use Underscore (_).
 
 [Tag Order - Standard Format]
 Base: composition(1girl, shot type) → character details → image rate (nsfw, slice of life, cozy...)

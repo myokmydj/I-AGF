@@ -928,6 +928,12 @@ export class DashboardModal {
                         </button>
                     </div>
                 </div>
+                <div class="field-group">
+                    <label>보조 모델 프롬프트</label>
+                    <textarea id="settings-aux-prompt" class="iagf-textarea" rows="12"
+                        placeholder="보조 모델에게 전달할 프롬프트. {{description}}, {{persona}}, {{lastMessage}} 변수 사용 가능">${escapeHtmlAttribute(settings.auxiliaryModel?.prompt || '')}</textarea>
+                    <p class="field-hint">사용 가능한 변수: {{description}}, {{persona}}, {{lastMessage}}</p>
+                </div>
                 <p class="section-desc warning">⚠️ Gemini 2.5~3 모델 사용시 종종 검열로 인해 이미지 프롬프트 생성이 실패할 수 있음. 프롬프트를 고치거나 리롤!</p>
             </div>
 
@@ -1396,6 +1402,11 @@ export class DashboardModal {
 
         $content.find('#settings-aux-profile').on('change', (e) => {
             this.settings.auxiliaryModel.connectionProfileId = e.target.value;
+            this.saveSettings();
+        });
+
+        $content.find('#settings-aux-prompt').on('change', (e) => {
+            this.settings.auxiliaryModel.prompt = e.target.value;
             this.saveSettings();
         });
 
