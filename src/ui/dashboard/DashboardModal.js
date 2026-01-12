@@ -1131,8 +1131,9 @@ export class DashboardModal {
                 .filter(Boolean)
                 .join(', ');
             const negativePrompt = preset.negativePrompt || '';
+            const advancedSettings = preset.advancedSettings || {};
 
-            const imageData = await this.generatePreview(prompt, negativePrompt);
+            const imageData = await this.generatePreview(prompt, negativePrompt, advancedSettings);
             
             if (imageData) {
                 const base64Image = imageData.startsWith('data:') 

@@ -3026,9 +3026,9 @@ function initializeDashboard() {
             saveSettings: saveSettingsDebounced,
             onUpdate: updateUI,
             getConnectionProfiles: getConnectionProfiles,
-            generatePreview: async (prompt, negativePrompt) => {
+            generatePreview: async (prompt, negativePrompt, advancedSettings) => {
                 try {
-                    return await iagfManagers.naiApi.generatePreview(prompt, negativePrompt);
+                    return await iagfManagers.naiApi.generatePreview(prompt, negativePrompt, advancedSettings);
                 } catch (error) {
                     console.error(`[${extensionName}] Preview generation failed:`, error);
                     return null;

@@ -193,11 +193,24 @@ export class NAIApiClient {
     /**
      * 미리보기용 작은 이미지 생성
      */
-    async generatePreview(prompt, negativePrompt = '') {
-        return await this.generate(prompt, {
-            width: 512,
-            height: 768,
+    async generatePreview(prompt, negativePrompt = '', advancedSettings = {}) {
+        const params = {
+            width: advancedSettings.width || 512,
+            height: advancedSettings.height || 768,
             negativePrompt,
-        });
+        };
+
+        // 고급 설정 적용
+        if (advancedSettings.enabled) {
+            if (advancedSettings.model) params.model = advancedSettings.model;
+            if (advancedSettings.steps) params.steps = advancedSettings.steps;
+            if (advancedSettings.scale != null) params.scale = advancedSettings.scale;
+            if (advancedSettings.seed != null) params.seed = advancedSettings.seed;
+            if (advancedSettings.sampler) params.sampler = advancedSettings.sampler;
+            if (advancedSettings.cfgRescale != null) params.cfgRescale = advancedSettings.cfgRescale;
+            if (advancedSettings.varietyPlus != null) params.variety = advancedSettings.varietyPlus;
+        }
+
+        return await this.generate(prompt, params);
     }
 }
