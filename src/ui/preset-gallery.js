@@ -379,6 +379,166 @@ export function initPresetGalleryModal() {
             background: var(--SmartThemeQuoteColor, #4a9);
             color: white;
         }
+
+        /* 반응형 - 태블릿 */
+        @media (max-width: 1024px) {
+            .iagf-modal-content {
+                width: min(700px, 100%);
+            }
+            .iagf-preset-cards {
+                grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+                gap: 12px;
+            }
+        }
+
+        /* 반응형 - 모바일 */
+        @media (max-width: 768px) {
+            .iagf-modal {
+                padding: 8px;
+                padding-top: max(8px, env(safe-area-inset-top));
+                padding-right: max(8px, env(safe-area-inset-right));
+                padding-bottom: max(8px, env(safe-area-inset-bottom));
+                padding-left: max(8px, env(safe-area-inset-left));
+            }
+            .iagf-modal-content {
+                width: 100%;
+                max-height: calc(100vh - 16px);
+                border-radius: 8px;
+            }
+            @supports (height: 100dvh) {
+                .iagf-modal-content {
+                    max-height: calc(100dvh - 16px);
+                }
+            }
+            .iagf-modal-header {
+                padding: 12px 16px;
+            }
+            .iagf-modal-header h3 {
+                font-size: 1rem;
+            }
+            .iagf-modal-close {
+                padding: 8px;
+                min-width: 44px;
+                min-height: 44px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+            .iagf-modal-body {
+                padding: 12px;
+            }
+            .iagf-preset-cards {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 10px;
+            }
+            .iagf-preset-card {
+                padding: 8px;
+                border-radius: 6px;
+            }
+            .iagf-preset-card-preview {
+                height: 120px;
+                margin-bottom: 8px;
+            }
+            .iagf-preset-card-name {
+                font-size: 0.85rem;
+                gap: 6px;
+            }
+            .iagf-preset-card-name input[type="checkbox"] {
+                width: 20px;
+                height: 20px;
+                min-width: 20px;
+            }
+            .iagf-preset-card-actions {
+                gap: 4px;
+                margin-top: 8px;
+            }
+            .iagf-preset-card-actions button {
+                padding: 8px 10px;
+                font-size: 0.8em;
+                min-height: 36px;
+            }
+
+            /* Advanced Settings Modal 모바일 */
+            .iagf-advanced-content {
+                width: 100%;
+                max-height: calc(100vh - 16px);
+            }
+            @supports (height: 100dvh) {
+                .iagf-advanced-content {
+                    max-height: calc(100dvh - 16px);
+                }
+            }
+            .iagf-advanced-toggle {
+                padding: 12px;
+            }
+            .iagf-advanced-toggle label {
+                gap: 12px;
+            }
+            .iagf-advanced-toggle small {
+                margin-left: 32px;
+            }
+            .iagf-advanced-row {
+                grid-template-columns: 1fr;
+                gap: 12px;
+            }
+            .iagf-advanced-field input,
+            .iagf-advanced-field select {
+                padding: 12px;
+                font-size: 1rem;
+                min-height: 44px;
+            }
+            .iagf-advanced-actions {
+                flex-direction: column;
+                gap: 8px;
+            }
+            .iagf-advanced-actions button {
+                width: 100%;
+                padding: 12px 20px;
+                min-height: 44px;
+                font-size: 1rem;
+            }
+        }
+
+        /* 반응형 - 소형 모바일 */
+        @media (max-width: 480px) {
+            .iagf-modal {
+                padding: 4px;
+            }
+            .iagf-modal-content {
+                max-height: calc(100vh - 8px);
+                border-radius: 6px;
+            }
+            @supports (height: 100dvh) {
+                .iagf-modal-content {
+                    max-height: calc(100dvh - 8px);
+                }
+            }
+            .iagf-preset-cards {
+                grid-template-columns: 1fr;
+                gap: 8px;
+            }
+            .iagf-preset-card {
+                display: flex;
+                flex-direction: row;
+                padding: 10px;
+            }
+            .iagf-preset-card-preview {
+                width: 80px;
+                height: 80px;
+                margin-bottom: 0;
+                margin-right: 12px;
+                flex-shrink: 0;
+            }
+            .iagf-preset-card-info {
+                flex: 1;
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+            }
+            .iagf-preset-card-actions {
+                margin-top: 8px;
+            }
+        }
     </style>
     `;
     $('body').append(modalHtml);

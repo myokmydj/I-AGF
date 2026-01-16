@@ -389,17 +389,48 @@ body.iagf-modal-open {
     50% { opacity: 0.5; }
 }
 
-/* 반응형 */
-@media (max-width: 768px) {
+/* 반응형 - 태블릿 */
+@media (max-width: 1024px) {
     .iagf-dashboard-container {
         width: 100%;
         height: calc(100vh - 32px);
+    }
+
+    .iagf-sidebar {
+        width: 180px;
+    }
+
+    .iagf-presets-layout {
+        grid-template-columns: 1fr;
+        gap: 16px;
+    }
+
+    .iagf-charref-layout {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* 반응형 - 모바일 */
+@media (max-width: 768px) {
+    .iagf-dashboard {
+        padding: 8px;
+        padding-top: max(8px, env(safe-area-inset-top));
+        padding-bottom: max(8px, env(safe-area-inset-bottom));
+        align-items: stretch;
+        justify-content: flex-start;
+    }
+
+    .iagf-dashboard-container {
+        width: 100%;
+        height: calc(100vh - 16px);
+        min-height: 0;
         flex-direction: column;
+        border-radius: 8px;
     }
 
     @supports (height: 100dvh) {
         .iagf-dashboard-container {
-            height: calc(100dvh - 32px);
+            height: calc(100dvh - 16px);
         }
     }
 
@@ -410,23 +441,314 @@ body.iagf-modal-open {
         border-bottom: 1px solid #2a2a2a;
     }
 
+    .iagf-sidebar-header {
+        padding: 12px 16px;
+    }
+
+    .iagf-logo {
+        font-size: 1.1rem;
+    }
+
     .iagf-nav {
         display: flex;
         flex-wrap: wrap;
         padding: 8px;
+        gap: 4px;
     }
 
     .iagf-nav-item {
-        padding: 8px 12px;
-        margin: 2px;
+        padding: 10px 14px;
+        margin: 0;
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
     }
 
     .iagf-nav-item span {
         display: none;
     }
 
+    .iagf-nav-item i {
+        font-size: 1.1rem;
+    }
+
     .iagf-nav-divider {
         display: none;
+    }
+
+    .iagf-header {
+        padding: 12px 16px;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .iagf-page-title {
+        font-size: 1.1rem;
+    }
+
+    .iagf-header-actions {
+        gap: 8px;
+    }
+
+    .iagf-status-badge {
+        padding: 4px 10px;
+        font-size: 0.8rem;
+    }
+
+    .iagf-close-btn {
+        width: 40px;
+        height: 40px;
+        min-width: 44px;
+        min-height: 44px;
+    }
+
+    .iagf-content {
+        padding: 16px;
+    }
+
+    /* 통계 그리드 모바일 */
+    .iagf-stats-grid {
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+    }
+
+    .iagf-stat-card {
+        padding: 14px;
+        flex-direction: column;
+        text-align: center;
+        gap: 10px;
+    }
+
+    .iagf-stat-card .stat-icon {
+        width: 40px;
+        height: 40px;
+        font-size: 1.1rem;
+    }
+
+    .iagf-stat-card .stat-value {
+        font-size: 1.3rem;
+    }
+
+    /* 섹션 모바일 */
+    .iagf-section {
+        padding: 16px;
+    }
+
+    .iagf-section-title {
+        font-size: 0.95rem;
+    }
+
+    /* 프리셋 페이지 모바일 */
+    .iagf-presets-layout {
+        grid-template-columns: 1fr;
+        gap: 16px;
+    }
+
+    .presets-list {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+    }
+
+    .preset-info {
+        padding: 8px;
+    }
+
+    .preset-name {
+        font-size: 0.8rem;
+    }
+
+    .preset-actions button {
+        min-width: 32px;
+        min-height: 32px;
+        padding: 6px;
+    }
+
+    /* Vibe Transfer 모바일 */
+    .iagf-vibe-grid {
+        grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+        gap: 10px;
+    }
+
+    .vibe-info {
+        padding: 8px;
+    }
+
+    .vibe-name {
+        font-size: 0.8rem;
+    }
+
+    .vibe-controls button {
+        min-width: 32px;
+        min-height: 32px;
+        padding: 6px;
+    }
+
+    /* 캐릭터 레퍼런스 모바일 */
+    .iagf-charref-layout {
+        grid-template-columns: 1fr;
+        gap: 16px;
+    }
+
+    .iagf-charref-sidebar {
+        padding: 14px;
+    }
+
+    .charref-list {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+        gap: 8px;
+    }
+
+    .iagf-char-item {
+        padding: 8px;
+    }
+
+    .char-preview {
+        width: 32px;
+        height: 32px;
+    }
+
+    .char-name {
+        font-size: 0.85rem;
+    }
+
+    .char-images-grid {
+        grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+        gap: 8px;
+    }
+
+    /* 폼 그리드 모바일 */
+    .iagf-form-grid {
+        grid-template-columns: 1fr;
+        gap: 16px;
+    }
+
+    /* 설정 페이지 모바일 */
+    .settings-actions {
+        flex-direction: column;
+    }
+
+    .settings-actions .iagf-btn {
+        width: 100%;
+        justify-content: center;
+        min-height: 44px;
+    }
+
+    .info-grid {
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+    }
+
+    .info-item {
+        padding: 10px;
+    }
+
+    .info-label {
+        font-size: 0.75rem;
+    }
+
+    .info-value {
+        font-size: 0.9rem;
+    }
+
+    /* 버튼 터치 친화적 크기 */
+    .iagf-btn {
+        padding: 10px 16px;
+        min-height: 44px;
+        font-size: 0.9rem;
+    }
+
+    .iagf-input,
+    .iagf-textarea,
+    .iagf-select {
+        padding: 12px 14px;
+        font-size: 1rem;
+        min-height: 44px;
+    }
+
+    .iagf-toggle .toggle-slider {
+        width: 44px;
+        height: 24px;
+    }
+
+    .iagf-toggle .toggle-slider::after {
+        width: 18px;
+        height: 18px;
+    }
+
+    .iagf-toggle input:checked + .toggle-slider::after {
+        transform: translateX(20px);
+    }
+
+    /* Advanced Fields 모바일 */
+    .advanced-fields-grid .field-row {
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
+
+    /* 옵션 설명 모바일 */
+    .option-desc {
+        margin-left: 0;
+        margin-top: 8px;
+    }
+
+    /* 라디오 버튼 모바일 */
+    .iagf-radio {
+        padding: 14px 16px;
+        min-height: 44px;
+    }
+}
+
+/* 반응형 - 소형 모바일 */
+@media (max-width: 480px) {
+    .iagf-dashboard {
+        padding: 4px;
+        padding-top: max(4px, env(safe-area-inset-top));
+        padding-bottom: max(4px, env(safe-area-inset-bottom));
+    }
+
+    .iagf-dashboard-container {
+        height: calc(100vh - 8px);
+        border-radius: 6px;
+    }
+
+    @supports (height: 100dvh) {
+        .iagf-dashboard-container {
+            height: calc(100dvh - 8px);
+        }
+    }
+
+    .iagf-stats-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .presets-list {
+        grid-template-columns: 1fr;
+    }
+
+    .iagf-vibe-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .charref-list {
+        grid-template-columns: 1fr;
+    }
+
+    .info-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .iagf-header {
+        padding: 10px 12px;
+    }
+
+    .iagf-content {
+        padding: 12px;
+    }
+
+    .iagf-section {
+        padding: 12px;
     }
 }
 
