@@ -17,6 +17,7 @@ import {
     extensionName,
     extensionFolderPath,
     INSERT_TYPE,
+    EXTENSION_VERSION,
     defaultSettings,
     escapeHtmlAttribute,
     SettingsManager,
@@ -330,6 +331,93 @@ async function generateWithAuxiliaryModel(lastMessage) {
     }
 }
 
+// ========== Update Notification System ==========
+
+/**
+ * 업데이트 알림 표시
+ */
+function showUpdateNotification() {
+    const settings = extension_settings[extensionName];
+    
+    // 이미 현재 버전을 확인했으면 표시 안함
+    if (settings.lastSeenVersion === EXTENSION_VERSION) {
+        return;
+    }
+    
+    // 처음 설치한 사용자는 알림 표시 안함 (버전만 저장)
+    if (settings.lastSeenVersion === null) {
+        settings.lastSeenVersion = EXTENSION_VERSION;
+        saveSettingsDebounced();
+        return;
+    }
+    
+    // 업데이트 알림 모달 표시
+    const modalHtml = `
+        <div id="iagf-update-modal" class="iagf-modal-overlay" style="display: flex; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 10000; align-items: center; justify-content: center;">
+            <div class="iagf-modal-content" style="background: var(--SmartThemeChatBG, #2a2a2a); border-radius: 12px; padding: 24px; max-width: 500px; width: 90%; box-shadow: 0 8px 32px rgba(0,0,0,0.5);">
+                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
+                    <i class="fa-solid fa-bell" style="font-size: 24px; color: #ffc107;"></i>
+                    <h3 style="margin: 0; color: var(--SmartThemeText, #fff);">IAGF v${EXTENSION_VERSION} 업데이트</h3>
+                </div>
+                
+                <div style="background: var(--SmartThemeBlurTint, #333); border-radius: 8px; padding: 16px; margin-bottom: 16px;">
+                    <h4 style="margin: 0 0 12px 0; color: #ff6b6b;">⚠️ 중요: 프롬프트 초기화 필요</h4>
+                    <p style="margin: 0 0 12px 0; color: var(--SmartThemeText, #ccc); line-height: 1.5;">
+                        이번 업데이트에서 <strong>이미지 생성 프롬프트 시스템이 대폭 개선</strong>되었습니다:
+                    </p>
+                    <ul style="margin: 0 0 12px 0; padding-left: 20px; color: var(--SmartThemeText, #ccc); line-height: 1.6;">
+                        <li>캐릭터 상호작용 태그 지원 (source#, target#, mutual#)</li>
+                        <li>멀티 캐릭터 구분자 | 지원</li>
+                        <li>Camera/Scene/Characters 구조화</li>
+                        <li>쉼표 구분 규칙 강화</li>
+                    </ul>
+                    <p style="margin: 0; color: #ff6b6b; font-weight: bold;">
+                        👉 새 기능을 사용하려면 아래 버튼을 눌러 모든 프롬프트와 정규식을 초기화하세요!
+                    </p>
+                </div>
+                
+                <div style="display: flex; gap: 12px; justify-content: flex-end;">
+                    <button id="iagf-update-skip" class="menu_button" style="padding: 10px 20px;">
+                        나중에
+                    </button>
+                    <button id="iagf-update-reset" class="menu_button menu_button_icon" style="padding: 10px 20px; background: #4a9eff;">
+                        <i class="fa-solid fa-rotate-left"></i>
+                        모든 프롬프트 초기화
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    $('body').append(modalHtml);
+    
+    // 나중에 버튼
+    $('#iagf-update-skip').on('click', () => {
+        settings.lastSeenVersion = EXTENSION_VERSION;
+        saveSettingsDebounced();
+        $('#iagf-update-modal').remove();
+        toastr.info('설정 > IAGF에서 언제든지 프롬프트를 초기화할 수 있습니다.', 'IAGF');
+    });
+    
+    // 초기화 버튼
+    $('#iagf-update-reset').on('click', () => {
+        if (confirm('모든 프롬프트와 정규식을 기본값으로 초기화하시겠습니까?\n\n• 인젝션 프롬프트\n• 추출 정규식\n• 메시지 액션 프롬프트\n• 보조 모델 프롬프트')) {
+            // 프롬프트 초기화
+            settings.promptInjection.prompt = defaultSettings.promptInjection.prompt;
+            settings.promptInjection.regex = defaultSettings.promptInjection.regex;
+            settings.messageActionPrompt.prompt = defaultSettings.messageActionPrompt.prompt;
+            settings.auxiliaryModel.prompt = defaultSettings.auxiliaryModel.prompt;
+            settings.lastSeenVersion = EXTENSION_VERSION;
+            saveSettingsDebounced();
+            
+            $('#iagf-update-modal').remove();
+            toastr.success('모든 프롬프트가 새 형식으로 초기화되었습니다!', 'IAGF');
+        }
+    });
+}
+
+// ========== End Update Notification System ==========
+
 /**
  * Extracts image prompts from auxiliary model response
  * @param {string} response - The auxiliary model response
@@ -347,7 +435,24 @@ function extractPromptsFromAuxiliaryResponse(response) {
         matches = singleMatch ? [singleMatch] : [];
     }
     
-    return matches.map(match => match[1]).filter(prompt => prompt && prompt.trim());
+    // 새 형식: camera(1), scene(2), prompt(3) 또는 기존 형식: prompt(1)
+    // 구조화된 객체로 반환
+    return matches.map(match => {
+        // 새 형식 체크: camera, scene, prompt 모두 있는 경우
+        if (match[3] !== undefined) {
+            return {
+                camera: (match[1] || '').trim(),
+                scene: (match[2] || '').trim(),
+                characters: (match[3] || '').trim(),
+            };
+        }
+        // 기존 형식: prompt만 있는 경우
+        return {
+            camera: '',
+            scene: '',
+            characters: (match[1] || '').trim(),
+        };
+    }).filter(p => p.characters);
 }
 
 // ========== End Auxiliary Model Functions ==========
@@ -813,20 +918,62 @@ function applyPresetToPrompt(prompt) {
     const settings = extension_settings[extensionName];
     const currentPreset = settings.presets[settings.currentPreset];
 
-    const tagMatchResult = applyTagMatching(prompt);
-    let finalPrompt = tagMatchResult.prompt;
+    // 구조화된 프롬프트 객체 처리 (camera, scene, characters)
+    let camera = '';
+    let scene = '';
+    let characters = '';
+    
+    if (typeof prompt === 'object' && prompt !== null) {
+        camera = prompt.camera || '';
+        scene = prompt.scene || '';
+        characters = prompt.characters || '';
+    } else {
+        // 기존 문자열 형식
+        characters = prompt;
+    }
 
-    if (!currentPreset) return finalPrompt;
+    const tagMatchResult = applyTagMatching(characters);
+    let characterPrompt = tagMatchResult.prompt;
 
+    if (!currentPreset) {
+        // 프리셋이 없으면 camera, scene, | characters 순서로 조합
+        const parts = [camera, scene].filter(p => p.trim());
+        if (characterPrompt.trim()) {
+            // 캐릭터 프롬프트 앞에 | 구분자 추가
+            parts.push('| ' + characterPrompt.trim());
+        }
+        return parts.join(', ');
+    }
+
+    // 조합 순서: camera, scene, prefixPrompt, | characters, suffixPrompt
+    const parts = [];
+    
+    // 1. Camera 태그 (가장 앞)
+    if (camera.trim()) {
+        parts.push(camera.trim());
+    }
+    
+    // 2. Scene 태그
+    if (scene.trim()) {
+        parts.push(scene.trim());
+    }
+    
+    // 3. Prefix Prompt (캐릭터 프롬프트 앞)
     if (currentPreset.prefixPrompt && currentPreset.prefixPrompt.trim()) {
-        finalPrompt = currentPreset.prefixPrompt.trim() + ', ' + finalPrompt;
+        parts.push(currentPreset.prefixPrompt.trim());
     }
-
+    
+    // 4. Characters (AI 생성 캐릭터 태그) - | 구분자로 시작
+    if (characterPrompt.trim()) {
+        parts.push('| ' + characterPrompt.trim());
+    }
+    
+    // 5. Suffix Prompt (가장 뒤)
     if (currentPreset.suffixPrompt && currentPreset.suffixPrompt.trim()) {
-        finalPrompt = finalPrompt + ', ' + currentPreset.suffixPrompt.trim();
+        parts.push(currentPreset.suffixPrompt.trim());
     }
 
-    return finalPrompt;
+    return parts.join(', ');
 }
 
 function getNAIExtraParams(prompt) {
@@ -1465,6 +1612,9 @@ $(function () {
             await loadSettings();
 
             await createSettings(settingsHtml);
+            
+            // 업데이트 알림 표시
+            showUpdateNotification();
 
             if (eventSource && event_types) {
                 eventSource.on(event_types.CHAT_CHANGED, () => {
@@ -1614,11 +1764,25 @@ function addMessageImageButton() {
                     extension_settings[extensionName].promptInjection.regex
                 );
                 const existingMatches = messageContent.match(imgTagRegex);
-                let extractedPrompt = null;
+                let extractedPromptObj = null;
                 
                 if (existingMatches && existingMatches[1]) {
-                    // 이미 pic 태그가 있으면 그 프롬프트 사용
-                    extractedPrompt = existingMatches[1];
+                    // 이미 pic 태그가 있으면 구조화된 객체로 변환
+                    if (existingMatches[3] !== undefined) {
+                        // 새 형식: camera(1), scene(2), prompt(3)
+                        extractedPromptObj = {
+                            camera: (existingMatches[1] || '').trim(),
+                            scene: (existingMatches[2] || '').trim(),
+                            characters: (existingMatches[3] || '').trim(),
+                        };
+                    } else {
+                        // 기존 형식: prompt만
+                        extractedPromptObj = {
+                            camera: '',
+                            scene: '',
+                            characters: (existingMatches[1] || '').trim(),
+                        };
+                    }
                 } else {
                     // pic 태그가 없으면 AI에게 프롬프트 생성 요청
                     toastr.info('Generating prompt from message...', 'IAGF');
@@ -1711,15 +1875,47 @@ function addMessageImageButton() {
                         console.log(`[${extensionName}] AI response received`);
 
                         if (generatedText) {
-                            // 응답에서 프롬프트 추출 (pic 태그가 있으면 그 안에서, 없으면 전체 텍스트)
-                            const picMatch = generatedText.match(/<pic[^>]*\sprompt="([^"]*)"[^>]*?>/);
-                            if (picMatch && picMatch[1]) {
-                                extractedPrompt = picMatch[1];
+                            // 새 형식: <pic camera="..." scene="..." prompt="...">
+                            const newFormatMatch = generatedText.match(/<pic\s+(?:camera="([^"]*)")?\s*(?:scene="([^"]*)")?\s*prompt="([^"]*)"[^>]*>/);
+                            if (newFormatMatch && (newFormatMatch[1] || newFormatMatch[2] || newFormatMatch[3])) {
+                                extractedPromptObj = {
+                                    camera: (newFormatMatch[1] || '').trim(),
+                                    scene: (newFormatMatch[2] || '').trim(),
+                                    characters: (newFormatMatch[3] || '').trim(),
+                                };
                             } else {
-                                // pic 태그 없이 직접 프롬프트를 출력한 경우
-                                extractedPrompt = generatedText.trim();
-                                // 불필요한 텍스트 제거
-                                extractedPrompt = extractedPrompt.replace(/^(prompt:|here'?s?|the prompt|image prompt|output:?)/i, '').trim();
+                                // 기존 형식: <pic prompt="...">
+                                const picMatch = generatedText.match(/<pic[^>]*\sprompt="([^"]*)"[^>]*?>/);
+                                if (picMatch && picMatch[1]) {
+                                    extractedPromptObj = {
+                                        camera: '',
+                                        scene: '',
+                                        characters: picMatch[1].trim(),
+                                    };
+                                } else {
+                                    // 3줄 형식 파싱: camera: ... / scene: ... / prompt: ...
+                                    const cameraLineMatch = generatedText.match(/camera:\s*(.+?)(?:\n|$)/i);
+                                    const sceneLineMatch = generatedText.match(/scene:\s*(.+?)(?:\n|$)/i);
+                                    const promptLineMatch = generatedText.match(/prompt:\s*(.+?)(?:\n|$)/i);
+                                    
+                                    if (promptLineMatch) {
+                                        extractedPromptObj = {
+                                            camera: cameraLineMatch ? cameraLineMatch[1].trim() : '',
+                                            scene: sceneLineMatch ? sceneLineMatch[1].trim() : '',
+                                            characters: promptLineMatch[1].trim(),
+                                        };
+                                    } else {
+                                        // pic 태그 없이 직접 프롬프트를 출력한 경우
+                                        let rawPrompt = generatedText.trim();
+                                        // 불필요한 텍스트 제거
+                                        rawPrompt = rawPrompt.replace(/^(prompt:|here'?s?|the prompt|image prompt|output:?)/i, '').trim();
+                                        extractedPromptObj = {
+                                            camera: '',
+                                            scene: '',
+                                            characters: rawPrompt,
+                                        };
+                                    }
+                                }
                             }
                         } else {
                             throw new Error('Empty response from AI');
@@ -1728,20 +1924,28 @@ function addMessageImageButton() {
                         console.error(`[${extensionName}] AI prompt generation failed:`, aiError);
                         toastr.warning('AI prompt generation failed, using message content directly');
                         // 폴백: 메시지 내용 직접 사용
-                        extractedPrompt = cleanContent.substring(0, 500);
+                        extractedPromptObj = {
+                            camera: '',
+                            scene: '',
+                            characters: cleanContent.substring(0, 500),
+                        };
                     }
                 }
 
-                if (!extractedPrompt) {
+                if (!extractedPromptObj || !extractedPromptObj.characters) {
                     toastr.warning('Could not generate prompt');
                     return;
                 }
 
+                // 원본 프롬프트 문자열 (저장용)
+                const extractedPromptStr = [extractedPromptObj.camera, extractedPromptObj.scene, extractedPromptObj.characters]
+                    .filter(p => p).join(', ');
+
                 toastr.info('Generating image...', 'IAGF');
                 
-                // 프리셋 적용
-                const finalPrompt = applyPresetToPrompt(extractedPrompt);
-                const extraParams = getNAIExtraParams(extractedPrompt);
+                // 프리셋 적용 (구조화된 객체 전달)
+                const finalPrompt = applyPresetToPrompt(extractedPromptObj);
+                const extraParams = getNAIExtraParams(extractedPromptObj.characters);
 
                 // 이미지 생성
                 const result = await generateImageWithSD(finalPrompt, extraParams);
@@ -1758,14 +1962,14 @@ function addMessageImageButton() {
                     }
                     
                     // 새 이미지를 media 배열에 추가 (SillyTavern 형식: url, type, title)
-                    message.extra.media.push({ url: result, type: 'image', title: extractedPrompt });
-                    message.extra.title = extractedPrompt;
+                    message.extra.media.push({ url: result, type: 'image', title: extractedPromptStr });
+                    message.extra.title = extractedPromptStr;
                     message.extra.inline_image = true;
                     
                     // 재생성을 위한 메타데이터 저장
                     const sdSettings = extension_settings.sd || {};
                     message.extra.iagf_gen_params = {
-                        prompt: extractedPrompt,
+                        prompt: extractedPromptStr,
                         finalPrompt: finalPrompt,
                         negativePrompt: extraParams.negativePrompt || sdSettings.negative_prompt || '',
                         width: parseInt(sdSettings.width) || 832,
@@ -2118,7 +2322,24 @@ async function handleIncomingMessage(mesId) {
         setTimeout(async () => {
             try {
                 toastr.info(`Generating ${matches.length} images...`);
-                const prompts = matches.map(match => typeof match?.[1] === 'string' ? match[1] : '').filter(p => p.trim());
+                // 새 형식: camera(1), scene(2), prompt(3) 또는 기존 형식: prompt(1)
+                // 구조화된 객체로 반환
+                const prompts = matches.map(match => {
+                    // 새 형식 체크: camera, scene, prompt 모두 있는 경우
+                    if (match[3] !== undefined) {
+                        return {
+                            camera: (match[1] || '').trim(),
+                            scene: (match[2] || '').trim(),
+                            characters: (match[3] || '').trim(),
+                        };
+                    }
+                    // 기존 형식: prompt만 있는 경우
+                    return {
+                        camera: '',
+                        scene: '',
+                        characters: (match[1] || '').trim(),
+                    };
+                }).filter(p => p.characters);
                 await processImageGeneration(message, context, prompts);
             } catch (error) {
                 console.error(`[${extensionName}] Error in image generation:`, error);
@@ -2132,7 +2353,7 @@ async function handleIncomingMessage(mesId) {
  * Process image generation for extracted prompts
  * @param {Object} message - The chat message object
  * @param {Object} context - The SillyTavern context
- * @param {Array<string>} prompts - Array of prompts to generate images for
+ * @param {Array<Object|string>} prompts - Array of prompt objects or strings to generate images for
  */
 async function processImageGeneration(message, context, prompts) {
     const settings = extension_settings[extensionName];
@@ -2152,18 +2373,28 @@ async function processImageGeneration(message, context, prompts) {
     const mesId = context.chat.length - 1;
     const messageElement = $(`.mes[mesid="${mesId}"]`);
 
-    // 处理每个提取的图片提示
+    // 처理每个提取的图片提示
     for (const prompt of prompts) {
-        if (!prompt.trim()) {
+        // 객체인 경우 characters 필드 확인, 문자열인 경우 직접 확인
+        const hasContent = typeof prompt === 'object' 
+            ? (prompt.characters && prompt.characters.trim())
+            : (prompt && prompt.trim());
+        
+        if (!hasContent) {
             continue;
         }
 
-        // 프리셋 적용
+        // 프리셋 적용 (객체 또는 문자열 모두 처리)
         const finalPrompt = applyPresetToPrompt(prompt);
-        const extraParams = getNAIExtraParams(prompt);
+        const extraParams = getNAIExtraParams(typeof prompt === 'object' ? prompt.characters : prompt);
+        
+        // 저장용 원본 프롬프트 문자열
+        const originalPromptStr = typeof prompt === 'object' 
+            ? [prompt.camera, prompt.scene, prompt.characters].filter(p => p).join(', ')
+            : prompt;
 
         console.log(`[${extensionName}] Generating image:`, {
-            originalPrompt: prompt,
+            originalPrompt: originalPromptStr,
             finalPrompt,
             extraParams,
         });
@@ -2201,14 +2432,14 @@ async function processImageGeneration(message, context, prompts) {
                 imageUrl.trim().length > 0
             ) {
                 // 새 이미지를 media 배열에 추가 (SillyTavern 형식: url, type, title)
-                message.extra.media.push({ url: imageUrl, type: 'image', title: prompt });
-                message.extra.title = prompt;
+                message.extra.media.push({ url: imageUrl, type: 'image', title: originalPromptStr });
+                message.extra.title = originalPromptStr;
                 message.extra.inline_image = true;
                 
                 // 재생성을 위한 메타데이터 저장
                 const sdSettings = extension_settings.sd || {};
                 message.extra.iagf_gen_params = {
-                    prompt: prompt,
+                    prompt: originalPromptStr,
                     finalPrompt: finalPrompt,
                     negativePrompt: extraParams.negativePrompt || sdSettings.negative_prompt || '',
                     width: parseInt(sdSettings.width) || 832,

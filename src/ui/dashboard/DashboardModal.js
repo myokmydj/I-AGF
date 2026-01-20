@@ -897,11 +897,17 @@ export class DashboardModal {
                 <div class="field-group">
                     <label>인젝션 프롬프트</label>
                     <textarea id="settings-injection-prompt" class="iagf-textarea" rows="8">${escapeHtmlAttribute(settings.promptInjection?.prompt || '')}</textarea>
+                    <button class="iagf-btn" id="btn-reset-injection-prompt">
+                        <i class="fa-solid fa-rotate-left"></i> 프롬프트 초기화
+                    </button>
                 </div>
                 <div class="field-group">
                     <label>추출 정규식</label>
                     <input type="text" id="settings-injection-regex" class="iagf-input" 
                         value="${escapeHtmlAttribute(settings.promptInjection?.regex || '')}">
+                    <button class="iagf-btn" id="btn-reset-injection-regex">
+                        <i class="fa-solid fa-rotate-left"></i> 정규식 초기화
+                    </button>
                 </div>
             </div>
 
@@ -1398,6 +1404,22 @@ export class DashboardModal {
         $content.find('#settings-injection-regex').on('change', (e) => {
             this.settings.promptInjection.regex = e.target.value;
             this.saveSettings();
+        });
+
+        $content.find('#btn-reset-injection-prompt').on('click', () => {
+            if (confirm('인젝션 프롬프트를 기본값으로 초기화하시겠습니까?')) {
+                this.settings.promptInjection.prompt = defaultSettings.promptInjection.prompt;
+                this.saveSettings();
+                $content.find('#settings-injection-prompt').val(defaultSettings.promptInjection.prompt);
+            }
+        });
+
+        $content.find('#btn-reset-injection-regex').on('click', () => {
+            if (confirm('추출 정규식을 기본값으로 초기화하시겠습니까?')) {
+                this.settings.promptInjection.regex = defaultSettings.promptInjection.regex;
+                this.saveSettings();
+                $content.find('#settings-injection-regex').val(defaultSettings.promptInjection.regex);
+            }
         });
 
         $content.find('#settings-aux-enabled').on('change', (e) => {

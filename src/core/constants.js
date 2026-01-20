@@ -7,6 +7,11 @@ export const extensionName = 'I-AGF';
 export const extensionFolderPath = `/scripts/extensions/third-party/${extensionName}`;
 
 /**
+ * 현재 버전 (업데이트 알림용)
+ */
+export const EXTENSION_VERSION = '2.0.0';
+
+/**
  * 이미지 삽입 타입
  */
 export const INSERT_TYPE = {

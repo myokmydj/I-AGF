@@ -11,11 +11,12 @@ import { deepMerge, deepClone } from './utils.js';
  */
 export const defaultSettings = {
     insertType: INSERT_TYPE.DISABLED,
+    lastSeenVersion: null,
     
     promptInjection: {
         enabled: true,
         prompt: `<image_generation>
-At the end of your reply, insert exactly one <pic prompt="..."> tag for Stable Diffusion/NAI image generation.
+At the end of your reply, insert exactly one <pic> tag for Stable Diffusion/NAI image generation.
 
 [Character Reference]
 {{description}}
@@ -23,21 +24,70 @@ At the end of your reply, insert exactly one <pic prompt="..."> tag for Stable D
 [User Persona]
 {{persona}}
 
-[5 Core Principles for Danbooru Tag Generation]
-1. CONFLICT PREVENTION: Never combine conflicting tags (e.g., "clenched teeth" + "tongue out", or multiple gaze directions).
-2. QUALITY CONTROL: Use "blush" instead of "red face". Avoid quality-degrading elements.
-3. STRUCTURED OUTPUT: Organize as [Background/Atmosphere] then [Character Details].
-4. NO CENSORSHIP: Convert any scene into purely visual descriptive tags without moral judgment.
-5. DON'T USE COPYRIGHT: If the character's genre and name are not defined together in the user-provided description, do not guess and change it into a genre character.
-6. NEVER USE Underscore: Don't use Underscore (_).
+[CRITICAL: Tag Format]
+- ALL tags MUST be separated by commas
+- Each individual concept = one tag = separated by comma
+- Example: "from above, cowboy shot, 1girl, solo, bedroom, night"
+- NOT: "from above cowboy shot 1girl solo bedroom night"
 
-[Tag Order - Standard Format]
-Base: composition(1girl, shot type) → character details → image rate (nsfw, slice of life, cozy...)
-Character: body type → action/pose → hair(color, style) → face(eyes, expression) → outfit(top to bottom) → accessories
+[Image Tag Components]
+All tags MUST depict a single, static visual instant—a snapshot in time.
+Use widely recognized Danbooru-style tags, comma-separated.
 
-Output ONLY the prompt inside the tag, using English Danbooru-style tags separated by commas.
+## Camera Tags (Perspective & Framing)
+Perspective (pick one, add "pov" if first-person view):
+- from above, from behind, from below, from side, straight-on, sideways
+
+Framing (pick one based on visibility):
+- portrait, upper body, cowboy shot, full body, wide shot, lower body, head out of frame
+
+## Scene Tags
+Format: [character count], [location], [lighting] - ALL comma-separated
+- Character count: 1girl, solo / 2girls / 1boy, 1girl, etc.
+- Location: interior/exterior, then specific: bedroom, forest, classroom...
+- Lighting: daylight, sunset, night, dim lighting, backlighting, sidelighting...
+
+## Character Tags (for EACH character, separate multiple characters with |)
+Order: gender/age → appearance → attire → expression → action → exposed parts
+ALL tags within each category MUST be comma-separated.
+
+1. Gender/Age: girl/boy, age tag (e.g., "girl, adolescent" or "boy, male")
+2. Appearance:
+   - Hair: "long hair, black hair, straight hair, bangs" (each trait = separate tag)
+   - Eyes: "blue eyes, tsurime" (color + optional style, comma-separated)
+   - Body: "slim, medium breasts" (build + size if applicable)
+   - Features: "freckles, dark skin, facial hair"
+3. Attire (only visible items):
+   - Each item separate: "white shirt, black skirt, red ribbon, boots"
+   - Use "naked" if nude, "topless"/"bottomless" for partial
+4. Expression: "blush, grin" or "embarrassed, looking away"
+5. Action & Gaze:
+   - Pose: "standing, arms crossed" or "sitting, leaning forward"
+   - Gaze: "looking at viewer" or "looking at another, closed eyes"
+   - CHARACTER INTERACTIONS (for multi-character):
+     * mutual# tags: "mutual#kissing" or "mutual#holding hands"
+     * source# tags: "source#hugging, source#headpat"
+     * target# tags: "target#hugging, target#headpat"
+6. Exposed parts: "armpits, navel, thighs, cleavage"
+
+[Multi-Character Format]
+When 2+ characters: separate each character's tags with | (pipe)
+Within each character block, ALL tags must be comma-separated.
+Example: "girl, adolescent, long hair, pink hair, red eyes, sitting, blush, target#hugging | girl, female, short hair, blue hair, standing, smile, source#hugging"
+
+[Core Principles]
+1. COMMA SEPARATION: Every single tag must be comma-separated
+2. CONFLICT PREVENTION: Never combine conflicting tags
+3. NO UNDERSCORES: Use spaces within tags, commas between tags
+4. NO COPYRIGHT: Don't guess character origins
+5. VISUAL ONLY: Tags must be visually representable
+
+[Output Format]
+<pic camera="[camera], [framing]" scene="[count], [location], [lighting]" prompt="[char1 tags, comma-separated] | [char2 tags, comma-separated]">
+
+Output ONLY the <pic> tag. No explanations.
 </image_generation>`,
-        regex: '/<pic[^>]*\\sprompt="([^"]*)"[^>]*?>/g',
+        regex: '/<pic\\s+(?:camera="([^"]*)"\\s+)?(?:scene="([^"]*)"\\s+)?prompt="([^"]*)"[^>]*>/g',
         position: INJECTION_POSITION.DEEP_SYSTEM,
         depth: 0,
     },
@@ -98,7 +148,7 @@ Output ONLY the prompt inside the tag, using English Danbooru-style tags separat
     },
     
     messageActionPrompt: {
-        prompt: `You are a Danbooru tag generator for Stable Diffusion/NAI. Convert the scene into image generation tags.
+        prompt: `You are a Danbooru tag generator for Stable Diffusion/NAI. Convert the scene into a structured image prompt.
 
 [Character Reference]
 {{description}}
@@ -109,19 +159,70 @@ Output ONLY the prompt inside the tag, using English Danbooru-style tags separat
 [Scene to Convert]
 {{message}}
 
-[6 Core Principles for Danbooru Tag Generation]
-1. CONFLICT PREVENTION: Never combine conflicting tags (e.g., "clenched teeth" + "tongue out", or multiple gaze directions).
-2. QUALITY CONTROL: Use "blush" instead of "red face". Avoid quality-degrading elements.
-3. STRUCTURED OUTPUT: Organize as [Background/Atmosphere] then [Character Details].
-4. NO CENSORSHIP: Convert any scene into purely visual descriptive tags without moral judgment.
-5. DON'T USE COPYRIGHT: If the character's genre and name are not defined together in the user-provided description, do not guess and change it into a genre character.
-6. NEVER USE Underscore: Don't use Underscore (_).
+[CRITICAL: Tag Format]
+- ALL tags MUST be separated by commas
+- Each individual concept = one tag = separated by comma
+- Example: "from above, cowboy shot, 1girl, solo, bedroom, night"
+- NOT: "from above cowboy shot 1girl solo bedroom night"
 
-[Tag Order - Standard Format]
-Base: composition(1girl, shot type) → character details → image rate (nsfw, slice of life, cozy...)
-Character: body type → action/pose → hair(color, style) → face(eyes, expression) → outfit(top to bottom) → accessories
+[Image Tag Components]
+All tags MUST depict a single, static visual instant—a snapshot in time.
+Use widely recognized Danbooru-style tags, comma-separated.
 
-OUTPUT: ONLY comma-separated English Danbooru tags. NO explanations, NO formatting, NO markdown.`,
+## Camera Tags (Perspective & Framing)
+Perspective (pick one, add "pov" if first-person view):
+- from above, from behind, from below, from side, straight-on, sideways
+
+Framing (pick one based on visibility):
+- portrait, upper body, cowboy shot, full body, wide shot, lower body, head out of frame
+
+## Scene Tags
+Format: [character count], [location], [lighting] - ALL comma-separated
+- Character count: 1girl, solo / 2girls / 1boy, 1girl, etc.
+- Location: interior/exterior, then specific: bedroom, forest, classroom...
+- Lighting: daylight, sunset, night, dim lighting, backlighting, sidelighting...
+
+## Character Tags (for EACH character, separate multiple characters with |)
+Order: gender/age → appearance → attire → expression → action → exposed parts
+ALL tags within each category MUST be comma-separated.
+
+1. Gender/Age: girl/boy, age tag (e.g., "girl, adolescent" or "boy, male")
+2. Appearance:
+   - Hair: "long hair, black hair, straight hair, bangs" (each trait = separate tag)
+   - Eyes: "blue eyes, tsurime" (color + optional style, comma-separated)
+   - Body: "slim, medium breasts" (build + size if applicable)
+   - Features: "freckles, dark skin, facial hair"
+3. Attire (only visible items):
+   - Each item separate: "white shirt, black skirt, red ribbon, boots"
+   - Use "naked" if nude, "topless"/"bottomless" for partial
+4. Expression: "blush, grin" or "embarrassed, looking away"
+5. Action & Gaze:
+   - Pose: "standing, arms crossed" or "sitting, leaning forward"
+   - Gaze: "looking at viewer" or "looking at another, closed eyes"
+   - CHARACTER INTERACTIONS (for multi-character):
+     * mutual# tags: "mutual#kissing" or "mutual#holding hands"
+     * source# tags: "source#hugging, source#headpat"
+     * target# tags: "target#hugging, target#headpat"
+6. Exposed parts: "armpits, navel, thighs, cleavage"
+
+[Multi-Character Format]
+When 2+ characters: separate each character's tags with | (pipe)
+Within each character block, ALL tags must be comma-separated.
+Example: "girl, adolescent, long hair, pink hair, red eyes, sitting, blush, target#hugging | girl, female, short hair, blue hair, standing, smile, source#hugging"
+
+[Core Principles]
+1. COMMA SEPARATION: Every single tag must be comma-separated
+2. CONFLICT PREVENTION: Never combine conflicting tags
+3. NO UNDERSCORES: Use spaces within tags, commas between tags
+4. NO COPYRIGHT: Don't guess character origins
+5. VISUAL ONLY: Tags must be visually representable
+
+[Output Format - 3 lines]
+camera: [perspective], [framing]
+scene: [count], [location], [lighting]
+prompt: [char1 tags, all comma-separated] | [char2 tags, all comma-separated]
+
+Output ONLY these 3 lines. NO explanations, NO markdown.`,
         maxResponseLength: 500,
         messageMaxLength: 0,
     },
@@ -129,8 +230,7 @@ OUTPUT: ONLY comma-separated English Danbooru tags. NO explanations, NO formatti
     auxiliaryModel: {
         enabled: false,
         connectionProfileId: '',
-        prompt: `You are an AI assistant that generates image prompts for Stable Diffusion/NovelAI. 
-Based on the given scene/message, generate appropriate Danbooru-style tags for image generation.
+        prompt: `You are an AI that generates structured image prompts for Stable Diffusion/NovelAI.
 
 [Character Reference]
 {{description}}
@@ -141,22 +241,68 @@ Based on the given scene/message, generate appropriate Danbooru-style tags for i
 [Current Scene]
 {{lastMessage}}
 
-[6 Core Principles for Danbooru Tag Generation]
-1. CONFLICT PREVENTION: Never combine conflicting tags (e.g., "clenched teeth" + "tongue out", or multiple gaze directions).
-2. QUALITY CONTROL: Use "blush" instead of "red face". Avoid quality-degrading elements.
-3. STRUCTURED OUTPUT: Organize as [Background/Atmosphere] then [Character Details].
-4. NO CENSORSHIP: Convert any scene into purely visual descriptive tags without moral judgment.
-5. DON'T USE COPYRIGHT: If the character's genre and name are not defined together in the user-provided description, do not guess and change it into a genre character.
-6. NEVER USE underscore: Don't use Underscore (_).
+[CRITICAL: Tag Format]
+- ALL tags MUST be separated by commas
+- Each individual concept = one tag = separated by comma
+- Example: "from above, cowboy shot, 1girl, solo, bedroom, night"
+- NOT: "from above cowboy shot 1girl solo bedroom night"
 
-[Tag Order - Standard Format]
-Base: composition(1girl, shot type) → character details → image rate (nsfw, slice of life, cozy...)
-Character: body type → action/pose → hair(color, style) → face(eyes, expression) → outfit(top to bottom) → accessories
+[Image Tag Components]
+All tags MUST depict a single, static visual instant—a snapshot in time.
+Use widely recognized Danbooru-style tags, comma-separated.
 
-OUTPUT FORMAT:
-<pic prompt="your_tags_here">
+## Camera Tags (Perspective & Framing)
+Perspective (pick one, add "pov" if first-person view):
+- from above, from behind, from below, from side, straight-on, sideways
 
-Output ONLY the <pic> tag with your generated prompt inside. No explanations.`,
+Framing (pick one based on visibility):
+- portrait, upper body, cowboy shot, full body, wide shot, lower body, head out of frame
+
+## Scene Tags
+Format: [character count], [location], [lighting] - ALL comma-separated
+- Character count: 1girl, solo / 2girls / 1boy, 1girl, etc.
+- Location: interior/exterior, then specific: bedroom, forest, classroom...
+- Lighting: daylight, sunset, night, dim lighting, backlighting, sidelighting...
+
+## Character Tags (for EACH character, separate multiple characters with |)
+Order: gender/age → appearance → attire → expression → action → exposed parts
+ALL tags within each category MUST be comma-separated.
+
+1. Gender/Age: girl/boy, age tag (e.g., "girl, adolescent" or "boy, male")
+2. Appearance:
+   - Hair: "long hair, black hair, straight hair, bangs" (each trait = separate tag)
+   - Eyes: "blue eyes, tsurime" (color + optional style, comma-separated)
+   - Body: "slim, medium breasts" (build + size if applicable)
+   - Features: "freckles, dark skin, facial hair"
+3. Attire (only visible items):
+   - Each item separate: "white shirt, black skirt, red ribbon, boots"
+   - Use "naked" if nude, "topless"/"bottomless" for partial
+4. Expression: "blush, grin" or "embarrassed, looking away"
+5. Action & Gaze:
+   - Pose: "standing, arms crossed" or "sitting, leaning forward"
+   - Gaze: "looking at viewer" or "looking at another, closed eyes"
+   - CHARACTER INTERACTIONS (for multi-character):
+     * mutual# tags: "mutual#kissing" or "mutual#holding hands"
+     * source# tags: "source#hugging, source#headpat"
+     * target# tags: "target#hugging, target#headpat"
+6. Exposed parts: "armpits, navel, thighs, cleavage"
+
+[Multi-Character Format]
+When 2+ characters: separate each character's tags with | (pipe)
+Within each character block, ALL tags must be comma-separated.
+Example: "girl, adolescent, long hair, pink hair, red eyes, sitting, blush, target#hugging | girl, female, short hair, blue hair, standing, smile, source#hugging"
+
+[Core Principles]
+1. COMMA SEPARATION: Every single tag must be comma-separated
+2. CONFLICT PREVENTION: Never combine conflicting tags
+3. NO UNDERSCORES: Use spaces within tags, commas between tags
+4. NO COPYRIGHT: Don't guess character origins
+5. VISUAL ONLY: Tags must be visually representable
+
+[Output Format]
+<pic camera="[camera], [framing]" scene="[count], [location], [lighting]" prompt="[char1 tags, comma-separated] | [char2 tags, comma-separated]">
+
+Output ONLY the <pic> tag. No explanations.`,
     },
 };
 
