@@ -1,4 +1,4 @@
-import { extensionName, INSERT_TYPE } from '../../core/constants.js';
+import { extensionName, INSERT_TYPE, EXTENSION_VERSION } from '../../core/constants.js';
 import { escapeHtmlAttribute } from '../../core/utils.js';
 import { defaultSettings } from '../../core/settings.js';
 
@@ -974,7 +974,7 @@ export class DashboardModal {
                 <div class="info-grid">
                     <div class="info-item">
                         <span class="info-label">버전</span>
-                        <span class="info-value">1.0.0</span>
+                        <span class="info-value">${EXTENSION_VERSION}</span>
                     </div>
                     <div class="info-item">
                         <span class="info-label">확장 이름</span>
