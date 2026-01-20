@@ -9,7 +9,7 @@ export const extensionFolderPath = `/scripts/extensions/third-party/${extensionN
 /**
  * 현재 버전 (업데이트 알림용)
  */
-export const EXTENSION_VERSION = '2.0.0';
+export const EXTENSION_VERSION = '2.6.0';
 
 /**
  * 이미지 삽입 타입
